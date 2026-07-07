@@ -14,7 +14,7 @@
       }
     }
   },
-  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit installed. Self-hosted deployment — all model inference runs via local NIMs (nim-llm, nemoretriever-embedding-ms, nemoretriever-ranking-ms). Required env var: NGC_API_KEY for pulling NIM containers from nvcr.io. cwd is the repo root: ${RAG_REPO_ROOT}/. Use deploy/compose/.env which is pre-configured for self-hosted endpoints.",
+  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit installed. Self-hosted deployment — all model inference runs via local NIMs (nim-llm, nemoretriever-embedding-ms, nemoretriever-ranking-ms). Required env var: NGC_API_KEY for pulling NIM containers from nvcr.io. cwd is the repo root: ${RAG_REPO_ROOT}/. Use the pre-configured self-hosted compose env-file in deploy/compose/.",
   "expects": [
     {
       "query": "Deploy NVIDIA RAG Blueprint in self-hosted mode using Docker Compose. Start all services including the local NIM containers for LLM and embedding inference. All containers should reach the Up state before reporting success.",

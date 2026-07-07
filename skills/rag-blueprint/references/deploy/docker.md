@@ -21,15 +21,7 @@ Auto-route based on hardware. Only ask if two modes are equally valid and the us
 
 ## Verify NGC_API_KEY
 
-Auto-check all possible locations before asking:
-
-```bash
-if [ -n "$NGC_API_KEY" ] || [ -n "$NVIDIA_API_KEY" ]; then echo "ENV_SET"; elif grep -Eh '^(export[[:space:]]+)?(NGC_API_KEY|NVIDIA_API_KEY)=' deploy/compose/.env deploy/compose/nvdev.env 2>/dev/null | grep -v "nvapi-your-key" | grep -q "nvapi-"; then echo "DOTENV_SET"; else echo "NOT_SET"; fi
-```
-
-- **ENV_SET**: proceed silently.
-- **DOTENV_SET**: load the env file that contains the key and proceed.
-- **NOT_SET**: ask the user to provide it. This is the only thing to ask for.
+`docker.md` is normally reached from `deploy.md`, which resolves the NGC key in Phase 2. If you invoked `docker.md` directly, resolve the key using the canonical order in [`../deploy.md`](../deploy.md) (Phase 2) before continuing.
 
 ## Docker Login
 
@@ -43,7 +35,7 @@ If already logged in → proceed silently.
 
 If not logged in → tell the user to run this themselves (the key gets expanded in agent logs):
 
-> Please run in your terminal: `echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin`
+> Please run in your terminal: `echo "${NGC_API_KEY:-$NVIDIA_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin`
 
 Wait for confirmation only if login was needed.
 

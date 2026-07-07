@@ -42,7 +42,7 @@ Read `docs/support-matrix.md` for current Kubernetes, Helm, and OS version requi
 ## Agent-Specific Notes
 - First deployment: 60–70 min (model cache download); subsequent: 10–15 min
 - Pods in `ContainerCreating`/`Init` for extended time is normal during cache download
-- PVCs are not removed by `helm uninstall` — delete manually: `kubectl delete nimcache --all -n rag && kubectl delete pvc --all -n rag`
+- PVCs are not removed by `helm uninstall` — after confirming, delete the leftover `nimcache` and `pvc` resources in the `rag` namespace with `kubectl`.
 - Port-forwarding may timeout for large file ingestion — not suitable for bulk uploads
 - All configurable endpoints documented in `deploy/helm/nvidia-blueprint-rag/endpoints.md`
 

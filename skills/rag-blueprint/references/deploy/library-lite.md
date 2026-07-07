@@ -34,4 +34,4 @@
 | `notebooks/rag_library_lite_usage.ipynb` | End-to-end lite mode: collection creation, ingestion, querying, search |
 
 ## Source Documentation
-- `docs/python-client.md` -- full library mode documentation (lite and full)
+- `docs/python-client.md` (lite mode) — Milvus Lite embedded DB, containerless NV-Ingest subprocess, cloud API keys

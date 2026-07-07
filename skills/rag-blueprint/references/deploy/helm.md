@@ -76,13 +76,13 @@ kubectl port-forward -n rag service/rag-server 8081:8081 --address 0.0.0.0 & kub
 
 ## Phase 5: Uninstall
 
-If the user wants to tear down:
+If the user wants to tear down, uninstall the release first:
 
 ```bash
 helm uninstall rag -n rag
-kubectl delete nimcache --all -n rag
-kubectl delete pvc --all -n rag
 ```
+
+`helm uninstall` does not remove the `nimcache` and `pvc` resources. After the user confirms data loss, delete those leftover resources in the `rag` namespace with `kubectl`.
 
 ## On Success
 

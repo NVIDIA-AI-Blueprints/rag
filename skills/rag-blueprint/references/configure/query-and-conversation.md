@@ -21,10 +21,8 @@ Use these features when the user wants follow-up questions, conversation-aware r
 | `CONVERSATION_HISTORY` | — | Setting to `0` also effectively disables query rewriting |
 
 ## Process
-1. Detect deployment mode. Docker: edit the active env file. Helm: edit `values.yaml`. Library: edit `notebooks/config.yaml`.
-2. Read the source doc for the feature.
-3. Apply config changes and restart the RAG server.
-4. Verify with a follow-up or multi-hop query against a known collection.
+
+Each feature below (query rewriting, multi-turn, query decomposition) lists its own steps; see **Restrictions** above for the shared prerequisites.
 
 ### Query Rewriting
 1. Read `docs/multiturn.md` for full configuration details.
@@ -52,6 +50,7 @@ Use these features when the user wants follow-up questions, conversation-aware r
 | Disable multi-turn | — | `CONVERSATION_HISTORY=0` |
 
 ## Agent-Specific Notes
+- Env-var changes (`ENABLE_QUERYREWRITER`, `CONVERSATION_HISTORY`, `ENABLE_QUERY_DECOMPOSITION`) require restarting the RAG server to take effect; verify afterward with a follow-up or multi-hop query against a known collection.
 - `MULTITURN_RETRIEVER_SIMPLE` only applies when query rewriting is disabled; query rewriting takes precedence if both are configured.
 - Query decomposition adds latency and is most useful for multi-hop questions that involve multiple entities or steps.
 - In library mode, configure these settings in `notebooks/config.yaml` instead of environment variables.

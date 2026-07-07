@@ -17,13 +17,7 @@ Auto-route based on Docker availability. Only ask if both modes are equally vali
 
 ## Verify NGC_API_KEY
 
-Auto-check all locations:
-
-```bash
-if [ -n "$NGC_API_KEY" ]; then echo "NGC_KEY_SET"; elif [ -n "$NVIDIA_API_KEY" ]; then echo "NVIDIA_KEY_SET"; else echo "NOT_SET"; fi
-```
-
-If NOT_SET: ask the user. Otherwise proceed silently.
+Library mode reads `NVIDIA_API_KEY` (which `NGC_API_KEY` maps to). If routed here from `deploy.md`, the key was resolved in Phase 2. If you invoked `library.md` directly, resolve it using the canonical order in [`../deploy.md`](../deploy.md) (Phase 2) before continuing.
 
 ## Deploy
 
@@ -51,4 +45,4 @@ Tell the user:
 5. If still failing, report the specific error to the user.
 
 ## Source Documentation
-- `docs/python-client.md` — Python library API, installation, full and lite mode setup
+- `docs/python-client.md` — library API overview and how to choose between full and lite mode

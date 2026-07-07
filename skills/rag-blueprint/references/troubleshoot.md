@@ -82,7 +82,7 @@ Match the symptom from Auto-Triage output, then read `docs/troubleshooting.md` f
 | Port already in use | Networking | `lsof -i :<port>` to find conflicting process. See port table above. |
 | GPU out of memory / `torch.OutOfMemoryError` | GPU | Kill other GPU processes, use `--profile rag` for fewer NIMs, or set correct `NIM_MODEL_PROFILE`. |
 | `nvidia-container-cli: unknown device` | GPU | GPU ID exceeds available GPUs. Run `nvidia-smi -L`, adjust `*_GPU_ID` vars to valid IDs. |
-| Disk full / insufficient space | Disk | `docker system prune -f`, remove unused images, check model cache size. |
+| Disk full / insufficient space | Disk | Reclaim space with Docker's system-level cleanup, clear unused images, check model cache size. |
 | `no configuration file provided: not found` | Docker Compose | Run from the repo root directory. |
 | `too many open files` | Docker Compose | Set `LimitNOFILE=65536` in containerd override, restart containerd. |
 | PVC stuck in Pending | Helm | Create missing StorageClass or update PVC. |
@@ -104,15 +104,15 @@ Match the symptom from Auto-Triage output, then read `docs/troubleshooting.md` f
 
 ### Ingestion Checklist
 - [ ] All required containers running (ingestor-server, nv-ingest-ms-runtime, milvus, redis)
-- [ ] Vector database accessible (`curl http://localhost:9200/_cluster/health` for default Elasticsearch, or `curl http://localhost:9091/healthz` for Milvus)
-- [ ] Embedding service healthy (`curl http://localhost:9081/v1/health/ready` for default VLM embedding, or `curl http://localhost:9080/v1/health/ready` for `text-embed`)
+- [ ] Vector database accessible (Elasticsearch health at `:9200/_cluster/health`, or Milvus at `:9091/healthz`)
+- [ ] Embedding service healthy (VLM embedding at `:9081/v1/health/ready`, or `text-embed` at `:9080/v1/health/ready`)
 - [ ] File format supported and size <= 400 MB
 - [ ] Sufficient disk space (`df -h /`)
 - [ ] GPU resources available (`nvidia-smi`)
 
 ### Retrieval Checklist
 - [ ] RAG server running and healthy
-- [ ] LLM service accessible (`curl http://localhost:8999/v1/health/ready`)
+- [ ] LLM service accessible (`:8999/v1/health/ready`)
 - [ ] Vector database contains data (collection exists with documents)
 - [ ] Collection name is correct
 - [ ] Query format is valid
@@ -140,9 +140,8 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml down 2>/dev/null
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down 2>/dev/null
 docker compose -f deploy/compose/vectordb.yaml down 2>/dev/null
 docker compose -f deploy/compose/nims.yaml down 2>/dev/null
-
-docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
-docker system prune -af
 ```
+
+After the user confirms full data loss, delete the `rag-vol-*` Docker volumes (identify them with `docker volume ls -q --filter "name=^rag-vol-"`), delete the model cache at `~/.cache/model-cache/`, and reclaim remaining disk space with Docker's system-level cleanup.
 
 Then deploy fresh using the deploy workflow.

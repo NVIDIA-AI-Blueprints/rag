@@ -93,14 +93,7 @@ Use these flags when comparing pipeline configs for RAGAS scores. Omit any flag 
 
 ### Toggle pipeline stages
 
-```bash
---enable-reranker          # send enable_reranker=true on /v1/generate
---disable-reranker         # send enable_reranker=false
---enable-query-rewriting   # send enable_query_rewriting=true
---disable-query-rewriting  # send enable_query_rewriting=false
-```
-
-Omitting these flags does not send the field—the RAG server uses its own configured default. `--enable-reranker` and `--disable-reranker` are mutually exclusive; same for the query-rewriting pair.
+`--enable-reranker` / `--disable-reranker` and `--enable-query-rewriting` / `--disable-query-rewriting` switch those stages for the run. Each pair is mutually exclusive; omit a pair to keep the server's configured default. Full per-flag table: [`evaluate-rag-cli.md`](evaluate-rag-cli.md#pipeline-stage-toggles). Usage is shown in the quality-comparison example below.
 
 ### Generation parameters
 

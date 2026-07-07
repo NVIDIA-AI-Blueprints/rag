@@ -59,10 +59,10 @@ library deployments.
 
 ## Autonomy Principles
 
-- Auto-detect everything: GPU, VRAM, drivers, Docker, CUDA, disk, OS, ports, existing services, NGC key, repo state.
-- If it can be checked with a command, check it — don't ask the user.
-- Ask only when user action is required: providing an API key, confirming data deletion, or choosing between equally valid options.
-- Once analysis is done, route to the correct workflow and execute.
+- Detect read-only environment facts with commands: GPU, VRAM, drivers, Docker, CUDA, disk, OS, ports, existing services, NGC key, repo state. If it can be checked with a read-only command, check it rather than asking.
+- **Every destructive, irreversible, or high-impact action requires explicit user confirmation first** — deleting data or Docker volumes, removing model caches or images, overwriting configuration, switching deployment modes, or stopping services the user did not ask to stop. Present the exact command and wait for the user's approval before it runs.
+- Ask when user action is required: providing an API key, or choosing between equally valid options.
+- After read-only analysis, route to the correct workflow. Non-destructive setup steps can proceed; every destructive step waits for the user's confirmation.
 
 ## Intent Detection
 

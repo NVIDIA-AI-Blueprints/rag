@@ -53,10 +53,10 @@ This stops ALL NIM containers (LLM, embedding, ranking, OCR, detection, and any 
 
 ### 2e: Library Mode Processes
 
-If library mode is active (detected Python processes):
+If library mode is active (detected Python processes): stop the running `nvidia_rag` / `uvicorn` RAG processes (identify their PIDs from the Step 1 detection output and terminate them), then bring down the backend containers:
 
 ```bash
-pkill -f "nvidia_rag" 2>/dev/null; pkill -f "uvicorn.*rag" 2>/dev/null; docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down 2>/dev/null; docker compose -f deploy/compose/vectordb.yaml down 2>/dev/null
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down 2>/dev/null; docker compose -f deploy/compose/vectordb.yaml down 2>/dev/null
 ```
 
 ### 2f: Kubernetes (Helm) Deployment
@@ -67,10 +67,7 @@ If K8s deployment was detected, use the release name and namespace from `helm li
 helm uninstall <release-name> -n <namespace> 2>/dev/null
 ```
 
-To also clean up persistent data (only if user requests full cleanup):
-```bash
-kubectl delete nimcache --all -n <namespace> 2>/dev/null; kubectl delete pvc --all -n <namespace> 2>/dev/null
-```
+To also clean up persistent data (only if the user requests full cleanup and confirms), delete the leftover `nimcache` and `pvc` resources in the namespace with `kubectl`.
 
 ## Step 3: Verify Everything Stopped
 
@@ -78,35 +75,31 @@ kubectl delete nimcache --all -n <namespace> 2>/dev/null; kubectl delete pvc --a
 echo "=== REMAINING ===" && docker ps --format "table {{.Names}}\t{{.Status}}" 2>/dev/null; echo "=== K8S ===" && kubectl get pods -n rag 2>/dev/null | head -10 || echo "NOT_K8S"; helm list -n rag 2>/dev/null || true
 ```
 
-If any RAG-related containers remain, force remove:
+If any RAG-related containers remain, list them, confirm with the user, then remove them individually by name:
 ```bash
-docker ps -a --format "{{.Names}}" | grep -E "(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure)" | xargs -r docker rm -f
+docker ps -a --format "{{.Names}}" | grep -E "(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure)"
 ```
+After the user confirms the list, stop each container and then delete the approved ones through the Docker CLI, one at a time by name.
 
-If pods remain after `helm uninstall`, force delete:
-```bash
-kubectl delete pods --all -n rag --force --grace-period=0 2>/dev/null
-```
+If pods remain after `helm uninstall` and the user confirms, force-terminate them with `kubectl` in the `rag` namespace (zero grace period).
 
 ## Step 4: Optional Cleanup
 
 Ask the user if they want to clean up data/volumes:
 
-- **Remove Docker volumes** (deletes ingested data, vector DB indices, object-store data, and ingestor scratch):
+- **Remove Docker volumes** (deletes ingested data, vector DB indices, object-store data, and ingestor scratch). List the volumes and confirm with the user first:
   ```bash
-  docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
+  docker volume ls -q --filter "name=^rag-vol-"
   ```
-  These named volumes include Elasticsearch, Milvus/etcd, SeaweedFS, and ingestor scratch data. Prefer deleting only the specific `rag-vol-*` volume the user requested.
+  After the user approves specific volumes, delete only those (one at a time by name) using Docker's volume-management commands. These named volumes include Elasticsearch, Milvus/etcd, SeaweedFS, and ingestor scratch data — delete only the specific `rag-vol-*` volume(s) the user requested.
 
-- **Remove model cache** (frees 100-200 GB for self-hosted):
-  ```bash
-  rm -rf ~/.cache/model-cache/
-  ```
+- **Remove model cache** (frees 100-200 GB for self-hosted). Only after the user confirms, delete the `~/.cache/model-cache/` directory with their preferred file-management tool.
 
-- **Remove Docker images** (frees disk space):
+- **Remove Docker images** (frees disk space). List the RAG images and confirm with the user first:
   ```bash
-  docker images | grep -E "nvcr.io/nvidia|milvusdb" | awk '{print $3}' | xargs -r docker rmi
+  docker images | grep -E "nvcr.io/nvidia|milvusdb"
   ```
+  After the user approves, delete only the approved images by ID or tag through the Docker CLI.
 
 Only perform cleanup if the user explicitly requests it.
 

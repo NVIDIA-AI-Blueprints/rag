@@ -40,4 +40,4 @@
 - `notebooks/rag_library_usage.ipynb` — complete walkthrough: setup, ingestion, querying, search, summaries
 
 ## Source Documentation
-- `docs/python-client.md` — full API reference, backend setup, configuration, cloud/self-hosted options
+- `docs/python-client.md` — Docker backend services, `NvidiaRAG`/`NvidiaRAGIngestor` API, cloud vs self-hosted config

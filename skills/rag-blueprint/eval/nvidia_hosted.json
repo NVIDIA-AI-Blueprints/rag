@@ -1,16 +1,24 @@
 {
   "skills": ["rag-blueprint"],
   "platforms": ["cpu"],
-  "env": "A Linux host with Docker + Docker Compose plugin installed and running. CPU-only — no NVIDIA GPU or driver present. NVIDIA-hosted deployment: all model inference goes to https://integrate.api.nvidia.com/v1. Required env var: NGC_API_KEY. cwd is the repo root: ${RAG_REPO_ROOT}/. Use deploy/compose/nvdev.env for cloud endpoints. IMPORTANT: use ci/vectordb-cpu.yaml instead of deploy/compose/vectordb.yaml for the vector database — the default uses a GPU Milvus image that fails on CPU-only hosts.",
+  "resources": {
+    "platforms": {
+      "cpu": {
+        "brev_type": "n2d-standard-4",
+        "description": "CPU-only Linux host with Docker + Docker Compose (GCP n2d-standard-4 shape). No GPU required — NVIDIA-hosted deployment uses cloud NIMs."
+      }
+    }
+  },
+  "env": "A Linux host with Docker + Docker Compose plugin installed and running. CPU-only — no NVIDIA GPU or driver present. NVIDIA-hosted deployment: all model inference goes to https://integrate.api.nvidia.com/v1. Required env var: NGC_API_KEY. cwd is the repo root: ${RAG_REPO_ROOT}/. Use the NVIDIA-hosted compose env-file in deploy/compose/ for cloud endpoints. IMPORTANT: use ci/vectordb-cpu.yaml instead of deploy/compose/vectordb.yaml for the vector database — the default uses a GPU Milvus image that fails on CPU-only hosts.",
   "expects": [
     {
-      "query": "Deploy NVIDIA RAG Blueprint using Docker Compose in NVIDIA-hosted mode (cloud NIMs). Source deploy/compose/nvdev.env, then start the vector DB, ingestor server, and rag server (with frontend) so that all containers are running. Do not start any local NIM containers (nims.yaml) — all model inference must use the cloud endpoint at integrate.api.nvidia.com.",
+      "query": "Deploy NVIDIA RAG Blueprint using Docker Compose in NVIDIA-hosted mode (cloud NIMs). Source the NVIDIA-hosted compose env-file (in deploy/compose/), then start the vector DB, ingestor server, and rag server (with frontend) so that all containers are running. Do not start any local NIM containers (nims.yaml) — all model inference must use the cloud endpoint at integrate.api.nvidia.com.",
       "checks": [
         "`docker ps --format '{{.Names}}' | grep -E '^(rag-server|ingestor-server|milvus-standalone|milvus-etcd|milvus-minio)$' | wc -l` outputs a number greater than or equal to 5",
         "`docker ps --format '{{.Names}}\\t{{.Status}}' | grep rag-server | grep -E 'Up|healthy'` returns at least one matching line",
         "`docker ps --format '{{.Names}}'` does NOT include any container starting with 'nim-llm', 'nemoretriever-embedding-ms', or 'nemoretriever-ranking-ms' (these would indicate local NIMs were started, which contradicts NVIDIA-hosted mode)",
         "`docker exec rag-server env 2>/dev/null | grep -E '^APP_LLM_SERVERURL=' | head -1` outputs a line containing integrate.api.nvidia.com OR is empty (when empty the cloud SDK default is used, which is also acceptable for NVIDIA-hosted mode)",
-        "The agent sourced deploy/compose/nvdev.env (or set APP_LLM_MODELNAME, APP_EMBEDDINGS_MODELNAME etc. via that env file) before running docker compose up — verifiable via the trajectory: a `source` of nvdev.env or an explicit reference to that env file in a docker compose --env-file invocation",
+        "The agent loaded the NVIDIA-hosted compose env-file (or set APP_LLM_MODELNAME, APP_EMBEDDINGS_MODELNAME etc. from it) before running docker compose up — verifiable via the trajectory: a `source` of the NVIDIA-hosted env-file or an explicit `docker compose --env-file` reference to it",
         "The agent's final output claims the deployment succeeded AND, at the time of the final claim, no core container (rag-server, ingestor-server, milvus-standalone) is in 'Created' or 'Restarting' state — i.e. the agent did not declare success prematurely. Per-file enumeration is NOT required; a single overall success message is fine as long as containers are actually Up"
       ]
     },

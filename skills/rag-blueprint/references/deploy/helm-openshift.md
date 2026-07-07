@@ -55,7 +55,7 @@ Read `docs/support-matrix.md` for current Kubernetes, Helm, and OS version requi
 - If a NIM pod hits `CrashLoopBackOff` with SCC-related errors, confirm `openshift.enabled: true` is set in the active overlay
 - If NIMCache jobs or pods hit `ImagePullBackOff`, confirm the NGC pull secret is linked to `nim-cache-sa`
 - Route timeouts during long requests → annotate the affected Route with `haproxy.router.openshift.io/timeout=300s`
-- `helm uninstall` does not remove PVCs — clean up with `kubectl delete nimcache --all -n "$NAMESPACE" && kubectl delete pvc --all -n "$NAMESPACE"`
+- `helm uninstall` does not remove PVCs — after confirming, clean up the leftover `nimcache` and `pvc` resources in `$NAMESPACE` with `kubectl`.
 
 ## Source Documentation
 - `docs/deploy-helm-openshift.md` — OpenShift Routes, SCC, overlay usage, OpenShift-specific troubleshooting

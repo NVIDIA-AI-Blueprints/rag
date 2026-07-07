@@ -28,10 +28,10 @@ Detect the deployment mode before making changes. Docker: edit the active env fi
 3. CPU mode: set `APP_VECTORSTORE_ENABLEGPUSEARCH=False`, `APP_VECTORSTORE_ENABLEGPUINDEX=False`, change Milvus image to non-GPU
 4. Auth: download milvus.yaml, enable `authorizationEnabled`, set password before first deployment
 
-### API Keys
-1. Read `docs/api-key.md` for NGC API key setup and per-service keys
-2. Fallback order: service-specific key > `NVIDIA_API_KEY` > `NGC_API_KEY`
-3. Per-service keys: `APP_LLM_APIKEY`, `APP_EMBEDDINGS_APIKEY`, `APP_RANKING_APIKEY`, `APP_VLM_APIKEY`, etc.
+### Per-Service API Keys
+1. Read `docs/api-key.md` for per-service key configuration (the base NGC key is resolved during deploy — see `deploy.md` Phase 2).
+2. Per-service resolution: a service-specific `*_APIKEY` overrides `NVIDIA_API_KEY`, which overrides `NGC_API_KEY`.
+3. Per-service vars: `APP_LLM_APIKEY`, `APP_EMBEDDINGS_APIKEY`, `APP_RANKING_APIKEY`, `APP_VLM_APIKEY`, etc.
 
 ## Decision Table
 
