@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Guardrails for NSPECT-UV6I-R3V9 dependency remediation (pip-audit verified pins)."""
+"""Guardrails for NSPECT-UV6I-R3V9 / NSPECT-S62Q-PZUD dependency remediation (pip-audit verified pins)."""
 
 from importlib.metadata import version
 from packaging.version import Version
@@ -33,3 +33,40 @@ def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
 
 def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
     assert Version(version("langsmith")) >= Version("0.8.0")
+
+
+# NSPECT-S62Q-PZUD (collection) — agentic-cve-fix pins, 2026-07-10
+def test_aiohttp_not_vulnerable_cve_2026_50269() -> None:
+    assert Version(version("aiohttp")) >= Version("3.14.1")
+
+
+def test_bleach_not_vulnerable_bdsa_2026_15486() -> None:
+    assert Version(version("bleach")) >= Version("6.4.0")
+
+
+def test_cryptography_not_vulnerable_ghsa_537c_gmf6_5ccf() -> None:
+    assert Version(version("cryptography")) >= Version("48.0.1")
+
+
+def test_starlette_not_vulnerable_cve_2026_48710() -> None:
+    assert Version(version("starlette")) >= Version("1.3.1")
+
+
+def test_langchain_not_vulnerable_cve_2026_55443() -> None:
+    assert Version(version("langchain")) >= Version("1.3.9")
+
+
+def test_langgraph_sdk_not_vulnerable_cve_2026_48776() -> None:
+    assert Version(version("langgraph-sdk")) >= Version("0.3.15")
+
+
+def test_langsmith_not_vulnerable_ghsa_f4xh_w4cj_qxq8() -> None:
+    assert Version(version("langsmith")) >= Version("0.8.18")
+
+
+def test_pydantic_settings_not_vulnerable_ghsa_4xgf_cpjx_pc3j() -> None:
+    assert Version(version("pydantic-settings")) >= Version("2.14.2")
+
+
+def test_python_multipart_not_vulnerable_cve_2026_53538() -> None:
+    assert Version(version("python-multipart")) >= Version("0.0.31")
