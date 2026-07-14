@@ -174,7 +174,7 @@ class NvidiaRAGIngestor:
         # config.nv_ingest.backend == "nrl".  None means NV-Ingest path is active.
         # Type annotation uses a string literal to avoid importing at module level
         # (nemo_retriever may not be installed when the NV-Ingest backend is used).
-        self._nrl_handler: "NemoRetrieverHandler | None" = None
+        self._nrl_handler: NemoRetrieverHandler | None = None
         self.prompts = get_prompts(prompts)
 
         # Initialize instance-based clients
@@ -191,9 +191,7 @@ class NvidiaRAGIngestor:
             self.object_store_operator = get_object_store_operator(config=self.config)
             # Ensure default bucket exists (idempotent operation)
             try:
-                self.object_store_operator._make_bucket(
-                    bucket_name=DEFAULT_BUCKET_NAME
-                )
+                self.object_store_operator._make_bucket(bucket_name=DEFAULT_BUCKET_NAME)
                 logger.debug(
                     "Ensured default object-store bucket '%s' exists",
                     DEFAULT_BUCKET_NAME,
@@ -1609,7 +1607,9 @@ class NvidiaRAGIngestor:
                             collection_prefix
                         )
                         if len(delete_object_names):
-                            self.object_store_operator.delete_payloads(delete_object_names)
+                            self.object_store_operator.delete_payloads(
+                                delete_object_names
+                            )
                             logger.info(
                                 f"Deleted all document summaries from object storage for collection: {collection}"
                             )
@@ -1866,7 +1866,9 @@ class NvidiaRAGIngestor:
             # Helper function to delete object-store metadata for documents
             def delete_object_store_metadata(docs_to_delete: list[str]) -> None:
                 if self.object_store_operator is None:
-                    logger.warning("Object store unavailable - skipping metadata deletion")
+                    logger.warning(
+                        "Object store unavailable - skipping metadata deletion"
+                    )
                     return
 
                 for doc in docs_to_delete:
@@ -1893,7 +1895,9 @@ class NvidiaRAGIngestor:
                             filename_prefix
                         )
                         if len(delete_object_names):
-                            self.object_store_operator.delete_payloads(delete_object_names)
+                            self.object_store_operator.delete_payloads(
+                                delete_object_names
+                            )
                             logger.info(
                                 "Deleted summary for doc: %s from object storage", doc
                             )
@@ -2345,7 +2349,9 @@ class NvidiaRAGIngestor:
         # so that callers polling GET /summary see a consistent initial state.
         # ------------------------------------------------------------------
         if generate_summary:
-            logger.debug("NRL: setting PENDING summary status for %d files", len(filepaths))
+            logger.debug(
+                "NRL: setting PENDING summary status for %d files", len(filepaths)
+            )
             for filepath in filepaths:
                 file_name = os.path.basename(filepath)
                 SUMMARY_STATUS_HANDLER.set_status(
@@ -2369,12 +2375,18 @@ class NvidiaRAGIngestor:
                     "before full ingest pipeline",
                     len(filepaths),
                 )
-                page_filter = summary_options.get("page_filter") if summary_options else None
+                page_filter = (
+                    summary_options.get("page_filter") if summary_options else None
+                )
                 summarization_strategy = (
-                    summary_options.get("summarization_strategy") if summary_options else None
+                    summary_options.get("summarization_strategy")
+                    if summary_options
+                    else None
                 )
                 try:
-                    shallow_schema_mgr = await self._nrl_handler.ingest_shallow(filepaths)
+                    shallow_schema_mgr = await self._nrl_handler.ingest_shallow(
+                        filepaths
+                    )
                     shallow_results = shallow_schema_mgr.to_nv_ingest_results_format()
                     task = asyncio.create_task(
                         self.__ingest_document_summary(
@@ -2463,9 +2475,13 @@ class NvidiaRAGIngestor:
         # Mirrors the asyncio.create_task block in __nv_ingest_ingestion_pipeline.
         # ------------------------------------------------------------------
         if generate_summary and not shallow_summary:
-            page_filter = summary_options.get("page_filter") if summary_options else None
+            page_filter = (
+                summary_options.get("page_filter") if summary_options else None
+            )
             summarization_strategy = (
-                summary_options.get("summarization_strategy") if summary_options else None
+                summary_options.get("summarization_strategy")
+                if summary_options
+                else None
             )
             task = asyncio.create_task(
                 self.__ingest_document_summary(

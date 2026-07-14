@@ -48,10 +48,7 @@ def _build_vlm_rerank_invoke_url(url: str, model: str) -> str:
 
     if not url:
         model_path = model.split("/", 1)[-1]
-        return (
-            "https://ai.api.nvidia.com/v1/retrieval/nvidia/"
-            f"{model_path}/reranking"
-        )
+        return f"https://ai.api.nvidia.com/v1/retrieval/nvidia/{model_path}/reranking"
 
     base_url = sanitize_nim_url(url, model, "ranking")
     parsed = urlparse(base_url)
@@ -63,10 +60,7 @@ def _build_vlm_rerank_invoke_url(url: str, model: str) -> str:
         if path.endswith("/reranking"):
             return base_url.rstrip("/")
         model_path = model.split("/", 1)[-1]
-        return (
-            "https://ai.api.nvidia.com/v1/retrieval/nvidia/"
-            f"{model_path}/reranking"
-        )
+        return f"https://ai.api.nvidia.com/v1/retrieval/nvidia/{model_path}/reranking"
 
     # Self-hosted NIM serves reranking from the OpenAI-style /v1/ranking endpoint.
     if path.endswith("/ranking"):
@@ -118,7 +112,9 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
     model: str = Field(description="The model to use for reranking.")
     url: str = Field(default="", description="URL endpoint for reranking service.")
     api_key: str | None = Field(default=None, description="Optional API key.")
-    top_n: int = Field(default=5, ge=0, description="The number of documents to return.")
+    top_n: int = Field(
+        default=5, ge=0, description="The number of documents to return."
+    )
     default_headers: dict = Field(
         default_factory=dict,
         description="Default headers merged into all requests.",
@@ -181,7 +177,11 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
         source_meta = metadata.get("source", {}) or {}
         source_id = (
             source_meta.get("source_id", "")
-            or (source_meta.get("source_name", "") if isinstance(source_meta, dict) else "")
+            or (
+                source_meta.get("source_name", "")
+                if isinstance(source_meta, dict)
+                else ""
+            )
             if isinstance(source_meta, dict)
             else ""
         )
@@ -262,7 +262,9 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
         for ranking in rankings[: self.top_n]:
             index = ranking.get("index")
             if not isinstance(index, int) or not 0 <= index < len(doc_list):
-                raise RuntimeError("invalid response from VLM reranker: index out of range")
+                raise RuntimeError(
+                    "invalid response from VLM reranker: index out of range"
+                )
 
             doc = doc_list[index]
             doc.metadata["relevance_score"] = ranking.get("logit")

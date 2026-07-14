@@ -26,7 +26,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from nvidia_rag.ingestor_server.nemo_retriever.extensions import NRL_SUPPORTED_EXTENSIONS
+from nvidia_rag.ingestor_server.nemo_retriever.extensions import (
+    NRL_SUPPORTED_EXTENSIONS,
+)
 
 logger = logging.getLogger(__name__)
 

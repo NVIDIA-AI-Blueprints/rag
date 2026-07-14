@@ -139,7 +139,9 @@ class QueryTrace:
             yield
         finally:
             elapsed_ms = (time.perf_counter() - t0) * 1000
-            self.node_timings.append(NodeTiming(node_name=node_name, duration_ms=elapsed_ms))
+            self.node_timings.append(
+                NodeTiming(node_name=node_name, duration_ms=elapsed_ms)
+            )
 
     # ---- properties -------------------------------------------------------
 

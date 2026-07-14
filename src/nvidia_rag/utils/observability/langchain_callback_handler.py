@@ -375,7 +375,9 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         self.run_inline = True
         self._run_id_usage_context: dict[UUID, tuple[dict[str, Any], str]] = {}
 
-    def _get_usage_scope_for_run(self, run_id: UUID, kwargs: Any) -> tuple[dict[str, Any], str] | None:
+    def _get_usage_scope_for_run(
+        self, run_id: UUID, kwargs: Any
+    ) -> tuple[dict[str, Any], str] | None:
         """Return (collector, feature) for this run from usage_collector_scope or run config."""
         scope = get_current_usage_scope()
         if scope is not None:

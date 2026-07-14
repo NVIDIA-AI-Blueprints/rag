@@ -118,7 +118,10 @@ def get_nv_ingest_ingestor(
     ingestor = ingestor.files(filepaths)
 
     if enable_pdf_split_processing:
-        logger.info("Enabling PDF split processing with options: %s", pdf_split_processing_options)
+        logger.info(
+            "Enabling PDF split processing with options: %s",
+            pdf_split_processing_options,
+        )
         ingestor = ingestor.pdf_split_config(
             pages_per_chunk=pdf_split_processing_options.get("pages_per_chunk")
         )
@@ -148,7 +151,9 @@ def get_nv_ingest_ingestor(
             "extract_page_as_image": config.nv_ingest.extract_page_as_image,
         }
         if config.nv_ingest.extract_tables_method is not None:
-            extract_kwargs["extract_tables_method"] = config.nv_ingest.extract_tables_method
+            extract_kwargs["extract_tables_method"] = (
+                config.nv_ingest.extract_tables_method
+            )
 
     if remove_extract_method or config.nv_ingest.pdf_extract_method is None:
         extract_kwargs.pop("extract_method", None)
@@ -182,7 +187,9 @@ def get_nv_ingest_ingestor(
     # Add captioning task if extract_images is enabled
     if config.nv_ingest.extract_images:
         prompts = prompts or get_prompts()
-        image_captioning_prompt_str = prompts.get("image_captioning_prompt").get("human")
+        image_captioning_prompt_str = prompts.get("image_captioning_prompt").get(
+            "human"
+        )
         reasoning = prompts.get("image_captioning_prompt").get("system") == "/think"
         logger.info(
             f"Enabling captioning task. Captioning Endpoint URL: {config.nv_ingest.caption_endpoint_url}, Captioning Model Name: {config.nv_ingest.caption_model_name}"

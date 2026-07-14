@@ -32,14 +32,13 @@ from __future__ import annotations
 
 from typing import Any, Union
 
-from pydantic import SecretStr, field_validator
 from pydantic import Field as PydanticField
+from pydantic import SecretStr, field_validator
 
 # _ConfigBase and Field are imported from configuration.py.
 # This works because configuration.py places its import of this module
 # after _ConfigBase and Field are already defined.
-from nvidia_rag.utils.configuration import _ConfigBase, Field
-
+from nvidia_rag.utils.configuration import Field, _ConfigBase
 
 # =============================================================================
 # AGENT BEHAVIOUR SUB-CONFIGS

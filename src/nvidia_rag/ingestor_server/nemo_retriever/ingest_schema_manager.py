@@ -24,7 +24,6 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
-
 from nemo_retriever.vector_store.lancedb_utils import build_lancedb_rows
 
 

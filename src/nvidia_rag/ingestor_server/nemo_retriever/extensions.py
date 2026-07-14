@@ -22,7 +22,9 @@ only the filter module on the NRL path without first importing ``GraphIngestor``
 from __future__ import annotations
 
 _PDF_DOC_EXTS: frozenset[str] = frozenset({".pdf", ".docx", ".pptx"})
-_IMAGE_EXTS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp"})
+_IMAGE_EXTS: frozenset[str] = frozenset(
+    {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp"}
+)
 _TEXT_EXTS: frozenset[str] = frozenset({".txt"})
 _HTML_EXTS: frozenset[str] = frozenset({".html", ".htm"})
 _AUDIO_VIDEO_EXTS: frozenset[str] = frozenset({".mp3", ".wav", ".mp4"})
