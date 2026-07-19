@@ -52,6 +52,9 @@
   "resolutions": {
     "@kui/foundations": "./src/assets/kui-foundations-react-external-0.504.1.tgz"
   },
+  "overrides": {
+    "tar": ">=7.5.16"
+  },
   "pnpm": {
     "overrides": {
       "rollup": ">=4.59.0",
