@@ -16,7 +16,7 @@ requires-python = ">=3.11,<3.14"
 dependencies = [
     "bleach>=6.2,<7.0",
     "dataclass-wizard>=0.27,<1.0",
-    "fastapi>=0.115.5,<1.0",
+    "fastapi>=0.133.0,<1.0",
     "anyio>=4.12.0",
     "httpx>=0.28.1",
     "httpx-sse>=0.4.3",
@@ -30,7 +30,7 @@ dependencies = [
     "pydantic>=2.11,<3.0",
     "pymilvus[milvus_lite]>=2.6.7,<3.0",
     "pymilvus-model>=0.3,<1.0",
-    "python-multipart>=0.0.27,<1.0",
+    "python-multipart>=0.0.30,<1.0",
     "pyyaml>=6.0,<7.0",
     "uvicorn[standard]>=0.32,<1.0",
     "langchain-core>=1.2.28",
@@ -56,7 +56,7 @@ rag = [
     "prometheus-client>=0.20,<1.0",
     "azure-core>=1.35,<2.0",
     "azure-storage-blob>=12.26,<13.0",
-    "pyarrow>=21.0,<22.0",
+    "pyarrow>=23.0.1,<25.0",
     "tiktoken>=0.7",
 ]
 ingest = [
@@ -79,7 +79,7 @@ ingest = [
     "opentelemetry-sdk>=1.29,<2.0",
     "azure-core>=1.35,<2.0",
     "azure-storage-blob>=12.26,<13.0",
-    "pyarrow>=21.0,<22.0",
+    "pyarrow>=23.0.1,<25.0",
     "setuptools>=80.10.2",
 ]
 all = [
@@ -102,7 +102,7 @@ all = [
     "opentelemetry-sdk>=1.29,<2.0",
     "azure-core>=1.35,<2.0",
     "azure-storage-blob>=12.26,<13.0",
-    "pyarrow>=21.0,<22.0",
+    "pyarrow>=23.0.1,<25.0",
     # Elasticsearch support
     "langchain-elasticsearch>=0.3",
 ]
@@ -117,11 +117,12 @@ nvidia-rag = { workspace = true }
 # Pillow 12.x required for containers; moviepy pins pillow<12 so override needed for resolution
 override-dependencies = [
     "pillow>=12.2.0",
-    "cryptography>=46.0.6",
+    "cryptography>=48.0.1",
     "urllib3>=2.7.0",
     "aiohttp>=3.13.4",
     "orjson>=3.11.6",
-    "langsmith>=0.8.0",
+    "langsmith>=0.8.18",
+    "starlette>=1.3.1",
     "langchain-classic>=1.0.7",
     "langchain-text-splitters>=1.1.2",
     "transformers>=5.1.0",
