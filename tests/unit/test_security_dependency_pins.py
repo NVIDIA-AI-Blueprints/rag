@@ -33,3 +33,31 @@ def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
 
 def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
     assert Version(version("langsmith")) >= Version("0.8.0")
+
+
+def test_cryptography_not_vulnerable_ghsa_537c_gmf6_5ccf() -> None:
+    assert Version(version("cryptography")) >= Version("48.0.1")
+
+
+def test_python_multipart_not_vulnerable_cve_2026_53538() -> None:
+    assert Version(version("python-multipart")) >= Version("0.0.31")
+
+
+def test_starlette_not_vulnerable_ghsa_82w8_qh3p_5jfq() -> None:
+    assert Version(version("starlette")) >= Version("1.3.1")
+
+
+def test_langchain_not_vulnerable_ghsa_gr75_jv2w_4656() -> None:
+    assert Version(version("langchain")) >= Version("1.3.9")
+
+
+def test_pyarrow_not_vulnerable_ghsa_rgxp_2hwp_jwgg() -> None:
+    assert Version(version("pyarrow")) >= Version("23.0.1")
+
+
+def test_bleach_not_vulnerable_ghsa_gj48_438w_jh9v() -> None:
+    assert Version(version("bleach")) >= Version("6.4.0")
+
+
+def test_aiohttp_not_vulnerable_cve_2026_34993() -> None:
+    assert Version(version("aiohttp")) >= Version("3.14.1")
