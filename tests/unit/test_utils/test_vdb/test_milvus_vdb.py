@@ -75,7 +75,10 @@ class TestMilvusVDB:
                 patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
             )
             try:
-                import nv_ingest_client  # noqa: F401
+                # Import the milvus util module specifically. nv_ingest_client can
+                # import while nv_ingest_client.util.milvus still fails (e.g. when
+                # pymilvus bulk_writer deps like ml_dtypes are missing).
+                import nv_ingest_client.util.milvus  # noqa: F401
             except ImportError:
                 pass
             else:
