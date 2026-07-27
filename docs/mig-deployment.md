@@ -227,6 +227,35 @@ Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-defa
 :::
 
 :::{note}
+**Nemotron 3 Super 120B — version 2.0.9**
+
+To run the LLM NIM at version `2.0.9`, override the image tag and cap `max_num_seqs`. In the MIG topology the LLM still runs with `tensorParallelism=2` on the two MIG-disabled NVLink GPUs (GPU 0,1). The `2.0.9` profile is a hybrid Mamba model that defaults to `max_num_seqs=1024`, which exceeds the available Mamba cache blocks on that two-GPU allocation and makes the vLLM engine fail during CUDA-graph capture. The NIM configuration schema does not expose `max_num_seqs`, so pass it straight to the engine with `NIM_PASSTHROUGH_ARGS`. Add the following to your MIG values file (`mig-slicing/values-mig-h100.yaml` or `mig-slicing/values-mig-rtx6000.yaml`):
+
+```yaml
+nimOperator:
+  nim-llm:
+    image:
+      tag: "2.0.9"
+    # The full env list is repeated because Helm replaces list values rather than merging them.
+    env:
+      - name: NIM_HTTP_API_PORT
+        value: "8000"
+      - name: NIM_TRITON_LOG_VERBOSE
+        value: "1"
+      - name: NIM_SERVED_MODEL_NAME
+        value: "nvidia/nemotron-3-super-120b-a12b"
+      - name: NIM_ENABLE_CHUNKED_PREFILL
+        value: "1"
+      - name: NCCL_NVLS_ENABLE
+        value: "0"
+      - name: VLLM_USE_FLASHINFER_MOE_FP8
+        value: "0"
+      - name: NIM_PASSTHROUGH_ARGS
+        value: "--max-num-seqs 384"
+```
+:::
+
+:::{note}
 Due to a known issue with MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing.
 This is expected to affect the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 :::

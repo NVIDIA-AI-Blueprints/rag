@@ -103,6 +103,35 @@ If you are working directly with the source Helm chart, and you want to customiz
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::
 
+   :::{note}
+   **Nemotron 3 Super 120B — version 2.0.9**
+
+   To run the LLM NIM at version `2.0.9`, override the image tag and cap `max_num_seqs`. The `2.0.9` profile is a hybrid Mamba model that defaults to `max_num_seqs=1024`; on a `tensorParallelism=2` (two-GPU) allocation this exceeds the available Mamba cache blocks and the vLLM engine fails during CUDA-graph capture. The NIM configuration schema does not expose `max_num_seqs`, so pass it straight to the engine with `NIM_PASSTHROUGH_ARGS`. Add the following to your values override file (`nvidia-blueprint-rag/values.yaml`) or a separate override included with `-f`:
+
+   ```yaml
+   nimOperator:
+     nim-llm:
+       image:
+         tag: "2.0.9"
+       # The full env list is repeated because Helm replaces list values rather than merging them.
+       env:
+         - name: NIM_HTTP_API_PORT
+           value: "8000"
+         - name: NIM_TRITON_LOG_VERBOSE
+           value: "1"
+         - name: NIM_SERVED_MODEL_NAME
+           value: "nvidia/nemotron-3-super-120b-a12b"
+         - name: NIM_ENABLE_CHUNKED_PREFILL
+           value: "1"
+         - name: NCCL_NVLS_ENABLE
+           value: "0"
+         - name: VLLM_USE_FLASHINFER_MOE_FP8
+           value: "0"
+         - name: NIM_PASSTHROUGH_ARGS
+           value: "--max-num-seqs 384"
+   ```
+   :::
+
    For **RTX PRO 6000** hardware, see the [RTX PRO 6000 setup prerequisites](nemotron3-super-deployment.md#rtx-pro-6000-setup) in the Nemotron 3 Super deployment guide.
 
 
