@@ -412,6 +412,82 @@ Apply with [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 
 
+## Migrate to Nemotron 3 Embed 1B (`nemotron-3-embed-1b:2.2.1`)
+
+To swap the embedder for the `nvcr.io/nim/nvidia/nemotron-3-embed-1b:2.2.1` NIM, repoint the text embedding service (`nemotron-embedding-ms`) at the new image and update the embedding model name everywhere ingestion and retrieval read it. This NIM serves the model as `nvidia/nemotron-3-embed-1b` and produces **2048-dimensional** embeddings. The steps below cover **Docker Compose** and **library (lite) mode**.
+
+### Docker Compose
+
+1. In [`deploy/compose/nims.yaml`](../deploy/compose/nims.yaml), update the `nemotron-embedding-ms` service image:
+
+   ```yaml
+   nemotron-embedding-ms:
+     container_name: nemotron-embedding-ms
+     image: nvcr.io/nim/nvidia/nemotron-3-embed-1b:2.2.1
+   ```
+
+2. Start (or restart) the text embedding NIM. It is gated behind the `text-embed` profile and published on host port `9080`:
+
+   ```bash
+   export USERID=$(id -u)
+   export NGC_API_KEY="nvapi-..."
+   export EMBEDDING_MS_GPU_ID=0   # optional GPU pinning
+
+   docker compose -f deploy/compose/nims.yaml --profile text-embed up -d
+   ```
+
+3. Point the RAG and ingestor servers at the new embedder. The default stack uses the VLM embedder, so you must override both the model name and the server URL:
+
+   ```bash
+   export APP_EMBEDDINGS_MODELNAME="nvidia/nemotron-3-embed-1b"
+   export APP_EMBEDDINGS_SERVERURL="nemotron-embedding-ms:8000/v1"
+   export APP_EMBEDDINGS_DIMENSIONS=2048
+   ```
+
+4. Recreate the servers so the ingestion (nv-ingest) and retrieval paths both pick up the new values:
+
+   ```bash
+   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+   docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+   ```
+
+### Library (lite) mode
+
+Library mode reads its models from `config.yaml` (see [`notebooks/config.yaml`](../notebooks/config.yaml)). You can either edit the file or override the config object before constructing the ingestor/RAG objects.
+
+1. Make the NIM reachable — either run it locally with the `text-embed` profile above (host port `9080`), or use the NVIDIA-hosted endpoint `https://integrate.api.nvidia.com/v1`.
+
+2. Update the `embeddings` block in `config.yaml`:
+
+   ```yaml
+   embeddings:
+     model_name: "nvidia/nemotron-3-embed-1b"
+     dimensions: 2048
+     server_url: "http://localhost:9080/v1"    # or https://integrate.api.nvidia.com/v1 for NVIDIA-hosted
+   ```
+
+   Or override the loaded config object in code (matches the pattern in [`notebooks/rag_library_lite_usage.ipynb`](../notebooks/rag_library_lite_usage.ipynb)):
+
+   ```python
+   from nvidia_rag import NvidiaRAGIngestor
+   from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+   config = NvidiaRAGConfig.from_yaml("config.yaml")
+   config.embeddings.model_name = "nvidia/nemotron-3-embed-1b"
+   config.embeddings.server_url = "http://localhost:9080/v1"
+   config.embeddings.dimensions = 2048
+
+   ingestor = NvidiaRAGIngestor(config=config, mode="lite")
+   ```
+
+3. Use the same `config` (same `model_name`, `server_url`, and `dimensions`) for both the `NvidiaRAGIngestor` and the `NvidiaRAG` objects so ingestion and retrieval share one embedding space.
+
+:::{warning}
+**Re-ingest after migrating.** Embeddings from `nemotron-3-embed-1b` are not comparable to those from the previous embedder. Drop or recreate your collection and re-ingest your corpus after switching, in both Docker Compose and library mode.
+:::
+
+
+
 ## Switch to the VLM Reranker
 
 The default reranker is the text reranker `nvidia/llama-nemotron-rerank-1b-v2`. To use a multimodal reranker that can re-rank with awareness of cited images, switch to `nvidia/llama-nemotron-rerank-vl-1b-v2`. See [Multimodal Retriever — Part 2: VLM Reranker](multimodal-retriever.md#part-2--vlm-reranker) for what the multimodal reranker does and the `ENABLE_VLM_RERANKER_IMAGE_INPUT` flag in detail. The steps below cover the model swap.
