@@ -15,8 +15,10 @@
 
 """Unit tests for Milvus VDB functionality."""
 
+import importlib
 import os
 from contextlib import ExitStack
+from types import ModuleType
 from unittest.mock import MagicMock, Mock, patch
 from urllib.parse import urlparse
 
@@ -33,6 +35,19 @@ from nvidia_rag.utils.vdb import (
     DEFAULT_METADATA_SCHEMA_COLLECTION,
 )
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import BYPASS_METADATA_THRESHOLD, MilvusVDB
+
+
+def _try_import_nv_ingest_milvus() -> ModuleType | None:
+    """Lazily probe for nv_ingest_client.util.milvus (optional in unit tests).
+
+    Import the milvus util module specifically. nv_ingest_client can import while
+    nv_ingest_client.util.milvus still fails (e.g. when pymilvus bulk_writer deps
+    like ml_dtypes are missing).
+    """
+    try:
+        return importlib.import_module("nv_ingest_client.util.milvus")
+    except ImportError:
+        return None
 
 
 def _make_dummy_milvus_vdb_for_delete():
@@ -74,11 +89,7 @@ class TestMilvusVDB:
             mock_conn = stack.enter_context(
                 patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
             )
-            try:
-                import nv_ingest_client  # noqa: F401
-            except ImportError:
-                pass
-            else:
+            if _try_import_nv_ingest_milvus() is not None:
                 stack.enter_context(patch("nv_ingest_client.util.milvus.Milvus"))
 
             mock_mc.return_value._using = "milvus_unit_test_alias"

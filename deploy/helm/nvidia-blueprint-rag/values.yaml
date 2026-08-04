@@ -800,7 +800,7 @@ nimOperator:
     image:
       repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
       pullPolicy: IfNotPresent
-      tag: "1.8.0"
+      tag: "2.0.9"
 # -- To switch back to Llama 3.3 Nemotron Super 49B (single GPU), replace the image block above with:
 #    image:
 #      repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b

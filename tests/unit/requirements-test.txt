@@ -17,6 +17,10 @@ coverage>=7.0.0
 # should be installed via: pip install -e .[all]
 # This file only contains testing-specific dependencies
 
+# pymilvus>=2.6.17 bulk_writer requires ml-dtypes; without it
+# nv_ingest_client.util.milvus fails to import and VDB unit patches error.
+ml-dtypes>=0.5.0
+
 # OpenTelemetry libs for unit tests
 opentelemetry-api
 opentelemetry-sdk

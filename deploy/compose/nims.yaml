@@ -1,7 +1,7 @@
 services:
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0
+    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:2.0.9
     shm_size: 16GB
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
