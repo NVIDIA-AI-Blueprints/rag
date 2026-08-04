@@ -457,6 +457,8 @@ Library mode reads its models from `config.yaml` (see [`notebooks/config.yaml`](
 
 1. Make the NIM reachable — either run it locally with the `text-embed` profile above (host port `9080`), or use the NVIDIA-hosted endpoint `https://integrate.api.nvidia.com/v1`.
 
+   The NVIDIA-hosted endpoint requires an API key (a locally hosted NIM does not). Provide it with `embeddings.api_key` in `config.yaml` (or the `APP_EMBEDDINGS_APIKEY` environment variable); if that is unset, it falls back to the `NVIDIA_API_KEY` or `NGC_API_KEY` environment variable.
+
 2. Update the `embeddings` block in `config.yaml`:
 
    ```yaml
@@ -464,11 +466,14 @@ Library mode reads its models from `config.yaml` (see [`notebooks/config.yaml`](
      model_name: "nvidia/nemotron-3-embed-1b"
      dimensions: 2048
      server_url: "http://localhost:9080/v1"    # or https://integrate.api.nvidia.com/v1 for NVIDIA-hosted
+     # api_key: "<api-key>"                     # required for the NVIDIA-hosted endpoint; falls back to NVIDIA_API_KEY / NGC_API_KEY
    ```
 
    Or override the loaded config object in code (matches the pattern in [`notebooks/rag_library_lite_usage.ipynb`](../notebooks/rag_library_lite_usage.ipynb)):
 
    ```python
+   from pydantic import SecretStr
+
    from nvidia_rag import NvidiaRAGIngestor
    from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
@@ -476,6 +481,9 @@ Library mode reads its models from `config.yaml` (see [`notebooks/config.yaml`](
    config.embeddings.model_name = "nvidia/nemotron-3-embed-1b"
    config.embeddings.server_url = "http://localhost:9080/v1"
    config.embeddings.dimensions = 2048
+   # For the NVIDIA-hosted endpoint, set an API key here (or via APP_EMBEDDINGS_APIKEY);
+   # if unset it falls back to the NVIDIA_API_KEY / NGC_API_KEY environment variable.
+   # config.embeddings.api_key = SecretStr("<api-key>")
 
    ingestor = NvidiaRAGIngestor(config=config, mode="lite")
    ```
