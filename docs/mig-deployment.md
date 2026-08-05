@@ -204,6 +204,9 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY \
+  --set nimOperator.nim-llm.image.tag=2.0.9 \
+  --set 'nimOperator.nim-llm.env[6].name=NIM_PASSTHROUGH_ARGS' \
+  --set-string 'nimOperator.nim-llm.env[6].value=--max-num-seqs 384' \
   -f mig-slicing/values-mig-h100.yaml
 ```
 
@@ -218,6 +221,9 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY \
+  --set nimOperator.nim-llm.image.tag=2.0.9 \
+  --set 'nimOperator.nim-llm.env[6].name=NIM_PASSTHROUGH_ARGS' \
+  --set-string 'nimOperator.nim-llm.env[6].value=--max-num-seqs 384' \
   -f mig-slicing/values-mig-rtx6000.yaml
 ```
 :::

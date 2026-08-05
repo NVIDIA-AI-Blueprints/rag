@@ -96,7 +96,10 @@ If you are working directly with the source Helm chart, and you want to customiz
     ```sh
     helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
     --set imagePullSecret.password=$NGC_API_KEY \
-    --set ngcApiSecret.password=$NGC_API_KEY
+    --set ngcApiSecret.password=$NGC_API_KEY \
+    --set nimOperator.nim-llm.image.tag=2.0.9 \
+    --set 'nimOperator.nim-llm.env[6].name=NIM_PASSTHROUGH_ARGS' \
+    --set-string 'nimOperator.nim-llm.env[6].value=--max-num-seqs 384'
     ```
 
    :::{note}

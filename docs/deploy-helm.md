@@ -102,7 +102,10 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
-    --set ngcApiSecret.password=$NGC_API_KEY
+    --set ngcApiSecret.password=$NGC_API_KEY \
+    --set nimOperator.nim-llm.image.tag=2.0.9 \
+    --set 'nimOperator.nim-llm.env[6].name=NIM_PASSTHROUGH_ARGS' \
+    --set-string 'nimOperator.nim-llm.env[6].value=--max-num-seqs 384'
     ```
 
    :::{note}
