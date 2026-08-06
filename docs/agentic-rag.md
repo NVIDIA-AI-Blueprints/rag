@@ -149,7 +149,7 @@ Each role has its own env prefix. Docker Compose chains these role-specific sett
 | Seed-gen | Retry follow-up queries | `AGENTIC_SEED_GEN_LLM_SERVERURL` | `AGENTIC_SEED_GEN_LLM_MODEL` | `AGENTIC_SEED_GEN_LLM_APIKEY` |
 | Synthesis | Final answer | `AGENTIC_SYNTHESIS_LLM_SERVERURL` | `AGENTIC_SYNTHESIS_LLM_MODEL` | `AGENTIC_SYNTHESIS_LLM_APIKEY` |
 
-Default Compose values come from the main LLM config: `APP_LLM_SERVERURL` defaults to `nim-llm:8000` and `APP_LLM_MODELNAME` defaults to `nvidia/nemotron-3-super-120b-a12b`. Set `SERVERURL=""` to use the NVIDIA-hosted API. API keys fall back through the role-specific value, `APP_LLM_APIKEY`, and the usual NVIDIA-hosted defaults.
+Default Compose values come from the main LLM config. For self-hosted/on-prem deployments, `APP_LLM_SERVERURL` defaults to `nim-llm:8000` and `APP_LLM_MODELNAME` defaults to `nvidia/nemotron-3-super-120b-a12b`. For NVIDIA-hosted cloud deployments, set each role `SERVERURL` to `""` and use `nvidia/nemotron-3-ultra-550b-a55b` for the LLM model. API keys fall back through the role-specific value, `APP_LLM_APIKEY`, and the usual NVIDIA-hosted defaults.
 
 Per-request `/v1/generate` `model` and `llm_endpoint` values override every agentic role for that request. Omit those fields to use the deployment or role-specific configuration.
 

@@ -15,11 +15,11 @@ To navigate this page more easily, click the outline button at the top of the pa
 
 ### Change the LLM Model
 
-The default LLM is `nvidia/nemotron-3-super-120b-a12b`. To use a different model from the API catalog,
+The default NVIDIA-hosted LLM is `nvidia/nemotron-3-ultra-550b-a55b`. To use a different model from the API catalog,
 specify the model in the `APP_LLM_MODELNAME` environment variable when you start the RAG Server.
 
 ```console
-export APP_LLM_MODELNAME='nvidia/nemotron-3-super-120b-a12b'
+export APP_LLM_MODELNAME='nvidia/nemotron-3-ultra-550b-a55b'
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
@@ -48,7 +48,7 @@ Both names refer to the same underlying model. Use the appropriate name based on
 
 ##### Nemotron 3 Super
 
-`nvidia/nemotron-3-super-120b-a12b` is the default LLM for this blueprint. For hardware requirements and RTX PRO 6000-specific setup, see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
+`nvidia/nemotron-3-super-120b-a12b` is the default self-hosted/on-prem LLM for this blueprint. For hardware requirements and RTX PRO 6000-specific setup, see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
 
 ##### Nemotron 3 Ultra
 
