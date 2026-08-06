@@ -7,6 +7,27 @@
 This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.md).
 
 
+## Release 2.6.1 (2026-08-06)
+
+This release focuses on model-default documentation and configuration updates. The default NVIDIA-hosted cloud endpoint model changes from Nemotron 3 Super to Nemotron 3 Ultra, and the default self-hosted/on-prem Nemotron 3 Super image is updated to the latest validated 2.0.9 version. This release does not update the RAG Blueprint application container images, Helm chart version, or Python library package version.
+
+### Highlights
+
+This release includes the following key updates:
+
+- **Default cloud endpoint model changed:** NVIDIA-hosted cloud endpoint examples now use `nvidia/nemotron-3-ultra-550b-a55b` instead of `nvidia/nemotron-3-super-120b-a12b`. This applies to the LLM, query rewriter, filter expression generator, summarization, reflection, and agentic RAG role examples.
+- **Default on-prem model updated:** Self-hosted/on-prem deployments that use Nemotron 3 Super now reference `nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:2.0.9` instead of `1.8.0`. Docker Compose, Helm, MIG, and model-profile examples are updated, including the required `NIM_PASSTHROUGH_ARGS=--max-num-seqs 384` Helm override.
+- Added Docker Compose environment overlays for Nemotron 3 Ultra local and NVIDIA-hosted deployments.
+- Added migration instructions for `nvcr.io/nim/nvidia/nemotron-3-embed-1b:2.2.1`, including Docker Compose, library mode, hosted endpoint API key configuration, 2048-dimensional embeddings, and re-ingestion guidance.
+- Restored Workbench compose image paths to the public `nvcr.io/nvidia/blueprint` registry organization.
+
+### Fixed Known Issues
+
+The following known issues have been resolved in this release:
+
+- Fixed scheduled skills evaluation runs so they execute full sweeps, archive only current-run results, and clean up Brev GPU instances on both success and failure.
+- Fixed NVIDIA-hosted `rag-blueprint` skill evaluation coverage by adding the missing CPU resource metadata.
+
 
 ## Release 2.6.0 (2026-05-30)
 
