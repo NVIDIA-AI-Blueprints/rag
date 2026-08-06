@@ -246,7 +246,9 @@ config_ingestor = NvidiaRAGConfig.from_yaml("config.yaml")
 # Update config for cloud deployment if using Option 2
 if DEPLOYMENT_MODE == "cloud":
     config_ingestor.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
+    config_ingestor.llm.model_name = "nvidia/nemotron-3-ultra-550b-a55b"
     config_ingestor.llm.server_url = ""  # Empty uses NVIDIA API catalog
+    config_ingestor.summarizer.model_name = "nvidia/nemotron-3-ultra-550b-a55b"
     config_ingestor.summarizer.server_url = ""  # Empty uses NVIDIA API catalog
 else:
     config_ingestor.embeddings.server_url = "http://nemotron-embedding-ms:8000/v1"
@@ -359,7 +361,7 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 # config_rag = NvidiaRAGConfig.from_dict({
 #     "llm": {
-#         "model_name": "nvidia/nemotron-3-super-120b-a12b",
+#         "model_name": "nvidia/nemotron-3-ultra-550b-a55b",
 #         "server_url": "",
 #     },
 #     "embeddings": {
@@ -378,6 +380,7 @@ config_rag = NvidiaRAGConfig.from_yaml("config.yaml")
 if DEPLOYMENT_MODE == "cloud":
     config_rag.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
     config_rag.ranking.server_url = ""  # Empty uses NVIDIA API catalog
+    config_rag.llm.model_name = "nvidia/nemotron-3-ultra-550b-a55b"
     config_rag.llm.server_url = ""  # Empty uses NVIDIA API catalog
 
 # Initialize NvidiaRAG with config

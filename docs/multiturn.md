@@ -199,6 +199,7 @@ You can enable query rewriting at runtime by setting `enable_query_rewriting: Tr
 1. Configure for cloud-hosted model:
    ```bash
    export APP_QUERYREWRITER_SERVERURL=""
+   export APP_QUERYREWRITER_MODELNAME="nvidia/nemotron-3-ultra-550b-a55b"
    export ENABLE_QUERYREWRITER="True"
    export CONVERSATION_HISTORY="5"
    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d

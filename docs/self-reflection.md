@@ -125,7 +125,7 @@ If you don't have sufficient GPU resources for on-premises deployment, you can u
    export REFLECTION_LLM_SERVERURL=""
 
    # Choose the reflection model (options below)
-   export REFLECTION_LLM="nvidia/nemotron-3-super-120b-a12b"  # Default option
+   export REFLECTION_LLM="nvidia/nemotron-3-ultra-550b-a55b"  # Default NVIDIA-hosted option
    # export REFLECTION_LLM="meta/llama-3.1-405b-instruct"  # Alternative option
    ```
 
