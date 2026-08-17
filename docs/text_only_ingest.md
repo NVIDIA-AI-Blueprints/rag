@@ -63,8 +63,10 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
 :::{note}
 In case you are [interacting with cloud hosted models](deploy-docker-nvidia-hosted.md) and want to enable text only mode, then in step 2, just export these specific environment variables as shown below:
    ```bash
-   export APP_EMBEDDINGS_SERVERURL=""
+   export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
+   export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1"
    export APP_LLM_SERVERURL=""
+   export APP_RANKING_MODELNAME="nvidia/llama-nemotron-rerank-vl-1b-v2"
    export APP_RANKING_SERVERURL=""
    export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3"
    export YOLOX_INFER_PROTOCOL="http"
