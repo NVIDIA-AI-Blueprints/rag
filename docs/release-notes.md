@@ -17,6 +17,7 @@ This release includes the following key updates:
 
 - **Default cloud endpoint model changed:** NVIDIA-hosted cloud endpoint examples now use `nvidia/nemotron-3-ultra-550b-a55b` instead of `nvidia/nemotron-3-super-120b-a12b`. This applies to the LLM, query rewriter, filter expression generator, summarization, reflection, and agentic RAG role examples.
 - **Default on-prem model updated:** Self-hosted/on-prem deployments that use Nemotron 3 Super now reference `nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:2.0.9` instead of `1.8.0`. Docker Compose, Helm, MIG, and model-profile examples are updated, including the required `NIM_PASSTHROUGH_ARGS=--max-num-seqs 384` Helm override.
+- Clarified the default NVIDIA-hosted embedding and reranker endpoint guidance: embeddings use the API Catalog base URL, while the reranker URL remains empty so the NVIDIA API Catalog client uses the default hosted reranking endpoint.
 - Added Docker Compose environment overlays for Nemotron 3 Ultra local and NVIDIA-hosted deployments.
 - Added migration instructions for `nvcr.io/nim/nvidia/nemotron-3-embed-1b:2.2.1`, including Docker Compose, library mode, hosted endpoint API key configuration, 2048-dimensional embeddings, and re-ingestion guidance.
 - Restored Workbench compose image paths to the public `nvcr.io/nvidia/blueprint` registry organization.
