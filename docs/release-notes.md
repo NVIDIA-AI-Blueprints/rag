@@ -7,6 +7,20 @@
 This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.md).
 
 
+## Release 2.6.2 (2026-08-17)
+
+This release updates NVIDIA-hosted cloud endpoint defaults for embedding and reranking documentation and configuration. It does not change the default self-hosted/on-prem model choices or update any RAG Blueprint application container images, Helm chart versions, or Python library package versions.
+
+### Highlights
+
+This release includes the following key updates:
+
+- **Default cloud embedding endpoint updated:** NVIDIA-hosted cloud examples and environment overlays now use `nvidia/llama-nemotron-embed-vl-1b-v2` with the API Catalog base URL `https://integrate.api.nvidia.com/v1`.
+- **Default cloud reranker endpoint updated:** NVIDIA-hosted cloud examples and environment overlays now use `nvidia/llama-nemotron-rerank-vl-1b-v2` with an empty reranker server URL so the NVIDIA API Catalog client uses the default hosted reranking endpoint.
+- Updated Docker Compose environment overlays, `variables.env`, cloud deployment documentation, text-only ingest guidance, Python client examples, and notebook examples to align with the hosted embedding and reranker defaults.
+- Kept on-prem defaults unchanged: self-hosted embeddings continue to use the VLM embedding service, while the self-hosted reranker remains `nvidia/llama-nemotron-rerank-1b-v2`.
+
+
 ## Release 2.6.1 (2026-08-06)
 
 This release focuses on model-default documentation and configuration updates. The default NVIDIA-hosted cloud endpoint model changes from Nemotron 3 Super to Nemotron 3 Ultra, and the default self-hosted/on-prem Nemotron 3 Super image is updated to the latest validated 2.0.9 version. This release does not update the RAG Blueprint application container images, Helm chart version, or Python library package version.

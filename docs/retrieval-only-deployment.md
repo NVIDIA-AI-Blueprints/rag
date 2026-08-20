@@ -115,13 +115,15 @@ For an even lighter deployment, use [NVIDIA-hosted NIMs](deploy-docker-nvidia-ho
 
 ```bash
 # Configure to use NVIDIA-hosted endpoints
+export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1"
-export APP_RANKING_SERVERURL="https://integrate.api.nvidia.com/v1"
+export APP_RANKING_MODELNAME="nvidia/llama-nemotron-rerank-vl-1b-v2"
+export APP_RANKING_SERVERURL=""
 export APP_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
 ```
 
 :::{note}
-For NVIDIA-hosted endpoints, use the explicit API Catalog base URL. The LLM URL is set to the hosted endpoint so retrieval-only health checks do not try to connect to a local LLM container that is intentionally not deployed.
+For NVIDIA-hosted endpoints, use the explicit API Catalog base URL for embeddings. Leave the reranker URL empty so the NVIDIA API Catalog client uses the default hosted reranking endpoint for `nvidia/llama-nemotron-rerank-vl-1b-v2`. The LLM URL is set to the hosted endpoint so retrieval-only health checks do not try to connect to a local LLM container that is intentionally not deployed.
 :::
 
 ### Step 3: Start the Vector Database

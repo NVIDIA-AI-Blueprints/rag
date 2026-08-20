@@ -369,7 +369,7 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 #         "server_url": "https://integrate.api.nvidia.com/v1",
 #     },
 #     "ranking": {
-#         "model_name": "nvidia/llama-nemotron-rerank-1b-v2",
+#         "model_name": "nvidia/llama-nemotron-rerank-vl-1b-v2",
 #         "server_url": "",
 #     },
 # })
@@ -378,7 +378,9 @@ config_rag = NvidiaRAGConfig.from_yaml("config.yaml")
 
 # Update config for cloud deployment if using Option 2
 if DEPLOYMENT_MODE == "cloud":
+    config_rag.embeddings.model_name = "nvidia/llama-nemotron-embed-vl-1b-v2"
     config_rag.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
+    config_rag.ranking.model_name = "nvidia/llama-nemotron-rerank-vl-1b-v2"
     config_rag.ranking.server_url = ""  # Empty uses NVIDIA API catalog
     config_rag.llm.model_name = "nvidia/nemotron-3-ultra-550b-a55b"
     config_rag.llm.server_url = ""  # Empty uses NVIDIA API catalog
