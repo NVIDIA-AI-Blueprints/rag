@@ -479,6 +479,52 @@ def _extract_stream_delta(chunk: Any) -> tuple[str, str]:
     return str(content) if content else "", str(reasoning) if reasoning else ""
 
 
+# Canonical NeMo Guardrails refusal phrase (see
+# `nemoguardrails/library/content_safety/flows.v1.co` — the library default is
+# `define bot refuse to respond  "I'm sorry, I can't respond to that."`).
+# We compare a normalized form so that benign drift across guardrails container
+# versions and rail profiles (comma vs. period, capitalization, "can't" vs.
+# "cannot", trailing whitespace) still triggers the refusal path. The allow-list
+# is intentionally small and requires the full phrase to be present so that an
+# ordinary LLM response containing the word "sorry" is not mistaken for a
+# refusal. Sync path (this fix, bug 6268068). The async path in
+# `generate_answer_async` is tracked separately (clone 6301657).
+_GUARDRAILS_REFUSAL_NORMALIZED = frozenset(
+    {
+        "i'm sorry i can't respond to that",
+        "i'm sorry i cannot respond to that",
+        "i am sorry i can't respond to that",
+        "i am sorry i cannot respond to that",
+    }
+)
+
+
+def _is_guardrails_refusal(content_delta: str) -> bool:
+    """Return True if ``content_delta`` is a NeMo Guardrails refusal-to-respond chunk.
+
+    Normalizes for benign phrasing drift (case, punctuation other than the
+    apostrophe in contractions, whitespace) before checking against a small
+    allow-list of equivalent forms. Robust to:
+
+    - period vs. comma after the leading "I'm sorry"
+    - trailing period or whitespace
+    - capitalization (e.g. "I'M SORRY, ...")
+    - "can't" vs. "cannot"
+    - "I'm sorry" vs. "I am sorry"
+    """
+    if not content_delta:
+        return False
+    # Keep letters, the apostrophe (for "can't" / "i'm"), and whitespace; drop
+    # commas, periods, and other punctuation that may differ across rail
+    # profiles. Lowercase + collapse whitespace so a single canonical form is
+    # compared against the allow-list.
+    cleaned = "".join(
+        ch for ch in content_delta.lower() if ch.isalpha() or ch.isspace() or ch == "'"
+    )
+    normalized = " ".join(cleaned.split())
+    return normalized in _GUARDRAILS_REFUSAL_NORMALIZED
+
+
 def generate_answer(
     generator: "Generator[str]",
     contexts: list[Any],
@@ -532,10 +578,16 @@ def generate_answer(
                 # Accumulate answer chunks for final logging
                 accumulated_response += content_delta
 
-                # TODO: This is a hack to clear contexts if we get an error
-                # response from nemoguardrails
-                if content_delta == "I'm sorry, I can't respond to that.":
-                    # Clear contexts if we get an error response
+                # When NeMo Guardrails refuses the query, the streamed chunk
+                # is the canonical "I'm sorry, I can't respond to that." (or
+                # a benignly-drifted variant). In that case the response is
+                # not actually derived from the retrieved documents, so the
+                # contexts must be cleared before citations are built below
+                # — otherwise the response carries stale citations for
+                # documents that were never used. See
+                # `_is_guardrails_refusal` for the recognized variants and
+                # bug 6268068 for context.
+                if _is_guardrails_refusal(content_delta):
                     contexts = []
                 chain_response = ChainResponse()
                 response_choice = ChainResponseChoices(
