@@ -1,0 +1,13 @@
+# Values override: change the default (VLM) embedding NIM image.
+# Default embedding service is nvidia-nim-llama-nemotron-embed-vl-1b-v2
+# (service name nemotron-vlm-embedding-ms), aligned with envVars.APP_EMBEDDINGS_SERVERURL.
+#
+# nemotron-3-embed-1b images are distroless (no shell), which the NIM operator's
+# NIMCache manifest-probe (`sh -c ...`) cannot run. useDirectPvc bypasses the
+# NIMCache and has the NIMService download the model into its own PVC at runtime.
+nimOperator:
+  nvidia-nim-llama-nemotron-embed-vl-1b-v2:
+    useDirectPvc: true
+    image:
+      repository: nvcr.io/nim/nvidia/nemotron-3-embed-1b
+      tag: "2.2.0"
