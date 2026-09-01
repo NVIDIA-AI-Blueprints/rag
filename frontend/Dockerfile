@@ -71,7 +71,7 @@ ENV PNPM_HOME=/usr/local/bin
 ENV npm_config_yes=true
 
 # Build the application
-RUN rm -rf node_modules && pnpm install --frozen-lockfile
+RUN rm -rf node_modules && (pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile)
 RUN pnpm run build
 
 # Prepare legal compliance files for production stage (conditional on DOWNLOAD_LEGAL_COMPLIANCE)
