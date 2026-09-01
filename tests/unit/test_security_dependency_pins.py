@@ -33,3 +33,7 @@ def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
 
 def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
     assert Version(version("langsmith")) >= Version("0.8.0")
+
+
+def test_langchain_not_vulnerable_cve_2026_44843() -> None:
+    assert Version(version("langchain")) >= Version("1.3.3")
