@@ -7,6 +7,86 @@
 This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.md).
 
 
+## Release 2.6.2 (2026-08-17)
+
+This release updates NVIDIA-hosted cloud endpoint defaults for embedding and reranking documentation and configuration. It does not change the default self-hosted/on-prem model choices or update any RAG Blueprint application container images, Helm chart versions, or Python library package versions.
+
+### Highlights
+
+This release includes the following key updates:
+
+- **Default cloud embedding endpoint updated:** NVIDIA-hosted cloud examples and environment overlays now use `nvidia/llama-nemotron-embed-vl-1b-v2` with the API Catalog base URL `https://integrate.api.nvidia.com/v1`.
+- **Default cloud reranker endpoint updated:** NVIDIA-hosted cloud examples and environment overlays now use `nvidia/llama-nemotron-rerank-vl-1b-v2` with an empty reranker server URL so the NVIDIA API Catalog client uses the default hosted reranking endpoint.
+- Updated Docker Compose environment overlays, `variables.env`, cloud deployment documentation, text-only ingest guidance, Python client examples, and notebook examples to align with the hosted embedding and reranker defaults.
+- Kept on-prem defaults unchanged: self-hosted embeddings continue to use the VLM embedding service, while the self-hosted reranker remains `nvidia/llama-nemotron-rerank-1b-v2`.
+
+
+## Release 2.6.1 (2026-08-06)
+
+This release focuses on model-default documentation and configuration updates. The default NVIDIA-hosted cloud endpoint model changes from Nemotron 3 Super to Nemotron 3 Ultra, and the default self-hosted/on-prem Nemotron 3 Super image is updated to the latest validated 2.0.9 version. This release does not update the RAG Blueprint application container images, Helm chart version, or Python library package version.
+
+### Highlights
+
+This release includes the following key updates:
+
+- **Default cloud endpoint model changed:** NVIDIA-hosted cloud endpoint examples now use `nvidia/nemotron-3-ultra-550b-a55b` instead of `nvidia/nemotron-3-super-120b-a12b`. This applies to the LLM, query rewriter, filter expression generator, summarization, reflection, and agentic RAG role examples.
+- **Default on-prem model updated:** Self-hosted/on-prem deployments that use Nemotron 3 Super now reference `nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:2.0.9` instead of `1.8.0`. Docker Compose, Helm, MIG, and model-profile examples are updated, including the required `NIM_PASSTHROUGH_ARGS=--max-num-seqs 384` Helm override.
+- Added Docker Compose environment overlays for Nemotron 3 Ultra local and NVIDIA-hosted deployments.
+- Added migration instructions for `nvcr.io/nim/nvidia/nemotron-3-embed-1b:2.2.1`, including Docker Compose, library mode, hosted endpoint API key configuration, 2048-dimensional embeddings, and re-ingestion guidance.
+- Restored Workbench compose image paths to the public `nvcr.io/nvidia/blueprint` registry organization.
+
+### Fixed Known Issues
+
+The following known issues have been resolved in this release:
+
+- Fixed scheduled skills evaluation runs so they execute full sweeps, archive only current-run results, and clean up Brev GPU instances on both success and failure.
+- Fixed NVIDIA-hosted `rag-blueprint` skill evaluation coverage by adding the missing CPU resource metadata.
+
+
+## Release 2.6.0 (2026-05-30)
+
+This release adds [Agentic RAG](./agentic-rag.md) support with plan-and-execute pipelines, streaming responses, and UI integration; changes the default vector database to Elasticsearch and the default object store to SeaweedFS; adds [Red Hat OpenShift](./deploy-helm-openshift.md) support for Helm-based deployment; and introduces new [agent skills](../skills/README.md) for deployment, evaluation, and performance tooling.
+
+### Highlights
+
+This release includes the following key updates:
+
+- [Added Agentic RAG support](./agentic-rag.md), including the plan-and-execute pipeline, streaming responses, and RAG UI integration.
+- Changed the default vector database to Elasticsearch.
+  - [GPU accelerated support needs enterprise access](./elasticsearch-configuration.md) and is disabled by default.
+  - [Milvus](./change-vectordb.md) remains available as an optional vector database backend.
+- Changed the default object store to SeaweedFS from MinIO.
+- Updated the default LLM to `nvidia/nemotron-3-super-120b-a12b` and enabled Nemotron reasoning by default in deployment configurations.
+- Promoted `nvidia/llama-nemotron-embed-vl-1b-v2` as the default embedding model. The text embedding model `nvidia/llama-nemotron-embed-1b-v2` remains available as [an optional configuration](./change-model.md#switch-from-the-vlm-embedder-to-the-text-only-embedder).
+- Added [VLM reranker support](./change-model.md#switch-to-the-vlm-reranker) as an opt-in.
+- Added dynamic filter expression generation for Elasticsearch.
+- Published [RAG performance tooling](../scripts/rag-perf/) and [skills](../skills/README.md) to use it easily.
+- Published the [RAG evaluation framework](../scripts/eval/README.md) and [skills](../skills/README.md) to use it easily.
+- Updated NV-Ingest to version 26.3.0.
+- Updated OCR NIM naming from `nemoretriever-ocr-v1` to `nemotron-ocr-v1`.
+- Added OpenClaw plugin for agent-driven deploy/configure/eval workflows.
+- Added [Red Hat OpenShift and OKD support](./deploy-helm-openshift.md) for Helm deployments.
+
+### Fixed Known Issues
+
+The following known issues have been resolved in this release:
+
+- Fixed default LLM sampling parameter handling for non-NVIDIA providers.
+
+## Release 2.5.1 (2026-04-29)
+
+This release adds opt-in support for [`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`](https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning/modelcard) as the Vision-Language Model and ships first-class support for VLM reasoning streams. Defaults are unchanged from 2.5.0 (text-only embedder, VLM inference disabled); the new VLM is opt-in via `ENABLE_VLM_INFERENCE=True`. Tracked under [BCS-445](https://jirasw.nvidia.com/browse/BCS-445).
+
+### Highlights
+
+- **Reasoning streaming:** New `enable_thinking` and `thinking_token_budget` config (mapped to `APP_VLM_ENABLE_THINKING`, `APP_VLM_THINKING_TOKEN_BUDGET`). When enabled, chain-of-thought tokens stream via `additional_kwargs["reasoning"]` and the final answer streams via `content`. Use `VLM_FILTER_THINK_TOKENS=false` to forward both to the client.
+- **VLM generation tuning defaults:** `APP_VLM_MAX_TOKENS=32768`, `APP_VLM_TEMPERATURE=0.6`, `APP_VLM_TOP_P=0.95`. `VLM_TO_LLM_FALLBACK` remains `False`.
+- **Image extraction stays opt-in:** `APP_NVINGEST_EXTRACTIMAGES` default remains `False`. Enable when running the VLM caption pipeline.
+- **Increased shared memory for VLM container:** `vlm-ms.shm_size` raised from 16GB to 32GB to accommodate the new VLM.
+
+### Known Issues
+
+- None at GA. The VLM image is published to the public NGC registry at `nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:1.7.0-variant`.
 
 ## Release 2.5.0 (2026-03-17)
 
@@ -17,7 +97,7 @@ This release introduces support for the Nemotron-super-3 model, updates NIMs to 
 This release includes the following key updates:
 
 - **Nemotron-super-3 model support.** You can now integrate the Nemotron-super-3 model by following the steps outlined in [Change the Inference or Embedding Model](change-model.md).
-- **NIMs updated to latest versions.** 
+- **NIMs updated to latest versions.**
   The following model updates are included:
   - `nvidia/llama-3.2-nv-embedqa-1b-v2` → `nvidia/llama-nemotron-embed-1b-v2`
   - `nvidia/llama-3.2-nv-rerankqa-1b-v2` → `nvidia/llama-nemotron-rerank-1b-v2`
@@ -30,7 +110,7 @@ This release includes the following key updates:
 - **Added MIG support for RTX 6000.** For details, refer to [MIG Deployment](mig-deployment.md) and use `values-mig-rtx6000.yaml` and `mig-config-rtx6000.yaml`.
 - Added documentation for the experimental Nemotron-parse-only ingestion pipeline. This configuration allows you to perform extraction using only Nemotron Parse through NV-Ingest, without relying on OCR, page-elements, graphic-elements, or table-structure NIMs. For more information, refer to [nemotron-parse-extraction.md](nemotron-parse-extraction.md#experimental-nemotron-parse-only-extraction).
 - Several bug fixes, including frontend CVE resolutions, improved multimodal content concatenation for VLM embeddings, enhanced VDB serialization for high-concurrency parallel ingestion, and updates to observability and NeMo Guardrails configurations.
-- Added agentic skills support: the `rag-blueprint` skill enables AI coding assistants (Claude Code, Cursor, Codex, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously. For details, refer to [RAG Blueprint Agent Skill](../skill-source/README.md).
+- Added agentic skills support: the `rag-blueprint` skill enables AI coding assistants (Claude Code, Cursor, Codex, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously. For details, refer to [RAG Blueprint Agent Skill](../skills/README.md).
 - Added [accuracy benchmark results](accuracy-benchmarks.md) across seven public datasets (RagBattlepacket, KG-RAG, Financebench, DC767, HotPotQA, Google Frames, and Vidore), comparing LLM and VLM configurations with reasoning on/off. Benchmarks use the NVIDIA Answer Accuracy metric from RAGAS.
 
 ### Fixed Known Issues
@@ -45,7 +125,7 @@ The following known issues have been resolved in this release:
 
 This release adds new features to the RAG pipeline for supporting agent workflows and enhances generations with VLMs augmenting multimodal input.
 
-### Highlights 
+### Highlights
 
 This release contains the following key changes:
 
@@ -71,7 +151,7 @@ This release contains the following key changes:
   - Compatibility with the [NVIDIA NeMo Agent Toolkit (NAT)](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
 - Summarization enhancements including the following. For details, refer to [Document Summarization Customization Guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb).
   - Shallow summarization support
-  - Easy model switches and dedicated configurations
+  - Direct model switches and dedicated configurations
   - Ease of prompt changes
 - Reserved field names `type`, `subtype`, and `location` for NeMo Retriever Library exclusive use in metadata schemas.
 - Added support for [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) which demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode.
@@ -111,7 +191,7 @@ The following are the known issues for the NVIDIA RAG Blueprint:
 - Currently, Helm-based deployment is not supported for [NeMo Guardrails](nemo-guardrails.md).
 - The Blueprint responses can have significant latency when using [NVIDIA API Catalog cloud hosted models](deploy-docker-nvidia-hosted.md).
 - The accuracy of the pipeline is optimized for certain file types like `.pdf`, `.txt`, `.docx`. The accuracy may be poor for other file types supported by NeMo Retriever Library, since image captioning is disabled by default.
-- When updating model configurations in Kubernetes `values.yaml` (for example, changing from 70B to 8B models), the RAG UI automatically detects and displays the new model configuration from the backend. No container rebuilds are required - simply redeploy the Helm chart with updated values and refresh the UI to see the new model settings in the Settings panel.
+- When updating model configurations in Kubernetes `values.yaml` (for example, changing from 70B to 8B models), the RAG UI automatically detects and displays the new model configuration from the backend. No container rebuilds are required - redeploy the Helm chart with updated values and refresh the UI to see the new model settings in the Settings panel.
 - The NeMo LLM microservice can take 5-6 minutes to start for every deployment.
 - B200 GPUs are not supported for the following advanced features. For these features, use H100 or A100 GPUs instead.
   - Image captioning support for ingested documents

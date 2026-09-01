@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
 import { useState, useCallback, useMemo } from "react";
 import { Button, FormField, TextInput, Switch, Flex, Text, Tag } from "@kui/react";
 import { X, Plus } from "lucide-react";

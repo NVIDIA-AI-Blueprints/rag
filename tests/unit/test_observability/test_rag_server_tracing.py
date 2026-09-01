@@ -58,6 +58,17 @@ class TestRAGServerTracingIntegration:
         """Create mock FastAPI app for testing"""
         return FastAPI()
 
+    @pytest.fixture(autouse=True)
+    def patch_instrumentors(self):
+        """Patch LangchainInstrumentor and MilvusInstrumentor to avoid real side-effects."""
+        with patch(
+            "nvidia_rag.utils.observability.tracing.instrumentation.LangchainInstrumentor"
+        ):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.MilvusInstrumentor"
+            ):
+                yield
+
     def test_prometheus_multiproc_dir_creation(
         self, temp_prom_dir, mock_settings, mock_app
     ):

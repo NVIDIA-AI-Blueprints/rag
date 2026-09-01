@@ -25,26 +25,34 @@ Provides pre-built query functions for document and metadata management in Elast
 """
 
 
-def get_unique_sources_query():
+def get_unique_sources_query(
+    after_key: dict | None = None,
+    page_size: int = 1000,
+):
     """
-    Generate aggregation query to retrieve all unique document sources.
+    Generate aggregation query to retrieve unique document sources.
+
+    Composite aggregations cap at ``search.max_buckets`` (default 65,536) per
+    request, so callers must paginate by passing the previous response's
+    ``after_key`` to walk past that ceiling.
     """
+    composite: dict = {
+        "size": page_size,
+        "sources": [
+            {
+                "source_name": {
+                    "terms": {"field": "metadata.source.source_name.keyword"}
+                }
+            }
+        ],
+    }
+    if after_key is not None:
+        composite["after"] = after_key
     query_unique_sources = {
         "size": 0,
         "aggs": {
             "unique_sources": {
-                "composite": {
-                    "size": 1000,  # Adjust size depending on number of unique values
-                    "sources": [
-                        {
-                            "source_name": {
-                                "terms": {
-                                    "field": "metadata.source.source_name.keyword"
-                                }
-                            }
-                        }
-                    ],
-                },
+                "composite": composite,
                 "aggs": {
                     "top_hit": {
                         "top_hits": {
@@ -63,7 +71,7 @@ def get_delete_metadata_schema_query(collection_name: str):
     Create deletion query for removing metadata schema by collection name.
     """
     query_delete_metadata_schema = {
-        "query": {"term": {"collection_name.keyword": collection_name}}
+        "query": {"term": {"collection_name": collection_name}}
     }
     return query_delete_metadata_schema
 
@@ -84,6 +92,27 @@ def get_delete_docs_query(source_value: str):
         "query": {"term": {"metadata.source.source_name.keyword": source_value}}
     }
     return query_delete_documents
+
+
+def get_chunks_by_source_and_pages_query(
+    source_name: str, page_numbers: list[int]
+) -> dict:
+    """
+    Build search query for retrieving chunks by source and page numbers.
+    Used for page context expansion (fetch_full_page_context).
+    """
+    return {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"metadata.source.source_name.keyword": source_name}},
+                    {"terms": {"metadata.content_metadata.page_number": page_numbers}},
+                ]
+            }
+        },
+        "size": 65536,
+        "_source": ["text", "metadata"],
+    }
 
 
 def create_metadata_collection_mapping():
@@ -179,6 +208,23 @@ def get_document_info_query(collection_name: str, document_name: str, info_type:
         }
     }
     return query_document_info
+
+
+def get_all_document_info_query(collection_name: str):
+    """
+    Create search query for retrieving all document info by collection name.
+    """
+    query_all_document_info = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"collection_name": collection_name}},
+                    {"term": {"info_type": "document"}},
+                ]
+            }
+        }
+    }
+    return query_all_document_info
 
 
 def get_delete_document_info_query_by_collection_name(collection_name: str):

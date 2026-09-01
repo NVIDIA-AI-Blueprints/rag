@@ -1,7 +1,16 @@
-# MIG-optimized resource configuration for RAG Blueprint
-# This file only overrides GPU resource requirements to use MIG slices
+# MIG-optimized resource configuration for RAG Blueprint on NVIDIA H100 80GB.
+# Pairs with mig-config-h100.yaml (profile: custom-h100-5gpu-llm2full-embed1full).
+#
+# GPU layout (5×H100 node):
+#   GPU 0,1 — MIG disabled, full devices  → nim-llm (nemotron-3-super-120b-a12b, vLLM tp=2)
+#   GPU 2   — 1× 3g.40gb + 4× 1g.10gb     → OCR + (graphic, page, table, spare)
+#   GPU 3   — MIG disabled, full device   → embedding-VLM
+#   GPU 4   — 1× 3g.40gb + 2× 1g.20gb     → rerank (+ spare 3g.40gb and 1g.20gb)
+#
+# Requires GPU Operator mig-strategy=mixed so the node advertises both
+# nvidia.com/gpu and nvidia.com/mig-* resources simultaneously.
 
-# Ingestor Server - reduce concurrency for MIG
+# Ingestor Server — reduce concurrency for MIG
 ingestor-server:
   envVars:
     NV_INGEST_FILES_PER_BATCH: "4"
@@ -13,33 +22,22 @@ nv-ingest:
     NV_INGEST_MAX_UTIL: 8
     MAX_INGEST_PROCESS_WORKERS: 2
 
-  # Milvus - uses 1g.10gb MIG slice
-  milvus:
-    standalone:
-      resources:
-        limits:
-          nvidia.com/gpu: "0"
-          nvidia.com/mig-1g.10gb: 1
-        requests:
-          nvidia.com/gpu: "0"
-          nvidia.com/mig-1g.10gb: 1
-
   # NV-Ingest NIM Operator overrides
   nimOperator:
-    # Page Elements - uses 1g.10gb
-    page_elements:
+    # OCR — uses 3g.40gb on GPU 2
+    ocr:
       resources:
         limits:
           nvidia.com/gpu: "0"
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-3g.40gb: 1
         requests:
           nvidia.com/gpu: "0"
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-3g.40gb: 1
       storage:
         pvc:
           storageClass: ""
 
-    # Graphic Elements - uses 1g.10gb
+    # Graphic Elements — uses 1g.10gb on GPU 2
     graphic_elements:
       resources:
         limits:
@@ -52,7 +50,20 @@ nv-ingest:
         pvc:
           storageClass: ""
 
-    # Table Structure - uses 1g.10gb
+    # Page Elements — uses 1g.10gb on GPU 2
+    page_elements:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
+      storage:
+        pvc:
+          storageClass: ""
+
+    # Table Structure — uses 1g.10gb on GPU 2
     table_structure:
       resources:
         limits:
@@ -65,45 +76,35 @@ nv-ingest:
         pvc:
           storageClass: ""
 
-    # OCR - uses 3g.40gb (larger slice)
-    nemoretriever_ocr_v1:
-      resources:
-        limits:
-          nvidia.com/gpu: "0"
-          nvidia.com/mig-3g.40gb: 1
-        requests:
-          nvidia.com/gpu: "0"
-          nvidia.com/mig-3g.40gb: 1
-      storage:
-        pvc:
-          storageClass: ""
 # Main NIM Operator overrides for MIG
 nimOperator:
-  # LLM - uses 7g.80gb
+  # LLM — 2 FULL H100 GPUs (no MIG).
+  # nemotron-3-super-120b-a12b runs with vLLM and tensorParallelism=2,
+  # which requires two physical GPUs with NVLink for NCCL collectives.
   nim-llm:
     resources:
       limits:
-        nvidia.com/gpu: "0"
-        nvidia.com/mig-7g.80gb: 1
+        nvidia.com/gpu: 2
       requests:
-        nvidia.com/gpu: "0"
-        nvidia.com/mig-7g.80gb: 1
-      storage:
-        pvc:
-          storageClass: ""
-  # Embedding - uses 1g.10gb
-  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+        nvidia.com/gpu: 2
+    storage:
+      pvc:
+        storageClass: ""
+
+  # VLM Embedding (default) — 1 FULL H100 GPU (no MIG) on GPU 3.
+  # Promoted to a full device so the vision tower has unrestricted compute
+  # and memory bandwidth, improving end-to-end embedding throughput.
+  nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     resources:
       limits:
-        nvidia.com/gpu: "0"
-        nvidia.com/mig-1g.10gb: 1
+        nvidia.com/gpu: 1
       requests:
-        nvidia.com/gpu: "0"
-        nvidia.com/mig-1g.10gb: 1
-      storage:
-        pvc:
-          storageClass: ""
-  # Reranking - uses 1g.20gb
+        nvidia.com/gpu: 1
+    storage:
+      pvc:
+        storageClass: ""
+
+  # Reranking — uses 1g.20gb on GPU 4.
   nvidia-nim-llama-32-nv-rerankqa-1b-v2:
     resources:
       limits:
@@ -112,6 +113,6 @@ nimOperator:
       requests:
         nvidia.com/gpu: "0"
         nvidia.com/mig-1g.20gb: 1
-      storage:
-        pvc:
-          storageClass: ""
+    storage:
+      pvc:
+        storageClass: ""

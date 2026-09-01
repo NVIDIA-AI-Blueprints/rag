@@ -30,9 +30,11 @@ from nvidia_rag.utils.common import (
     filter_documents_by_confidence,
     get_current_timestamp,
     get_metadata_configuration,
+    object_key_from_storage_uri,
     perform_document_info_aggregation,
     prepare_custom_metadata_dataframe,
     process_filter_expr,
+    release_nvidia_client_response,
     sanitize_nim_url,
     utils_cache,
     validate_filter_expr,
@@ -111,6 +113,42 @@ class TestCombineDicts:
         result = combine_dicts(dict_a, dict_b)
         expected = {"key": "value"}
         assert result == expected
+
+
+class TestObjectKeyFromStorageUri:
+    """Test object_key_from_storage_uri."""
+
+    def test_s3_path_only(self) -> None:
+        uri = "s3://default-bucket/ragbattlepacket/tesla-10q.pdf"
+        assert object_key_from_storage_uri(uri) == "ragbattlepacket/tesla-10q.pdf"
+
+    def test_s3_path_with_fragment_in_object_key(self) -> None:
+        uri = "s3://default-bucket/ragbattlepacket/tesla-10q.pdf#pages_1-32/106.png"
+        assert (
+            object_key_from_storage_uri(uri)
+            == "ragbattlepacket/tesla-10q.pdf#pages_1-32/106.png"
+        )
+
+
+class TestReleaseNvidiaClientResponse:
+    """Test cleanup of retained NVIDIA endpoint client handles."""
+
+    def test_closes_and_clears_client_response(self):
+        response = Mock()
+        client = Mock()
+        client.last_response = response
+        client.last_inputs = {"input": ["query"]}
+        obj = Mock()
+        obj._client = client
+
+        release_nvidia_client_response(obj)
+
+        response.close.assert_called_once()
+        assert client.last_response is None
+        assert client.last_inputs is None
+
+    def test_ignores_objects_without_client(self):
+        release_nvidia_client_response(object())
 
 
 class TestSanitizeNimUrl:
@@ -547,6 +585,109 @@ class TestValidateFilterExpr:
         result = validate_filter_expr("test", ["collection1"], {}, config=mock_config)
         assert result["status"] is False
         assert "Unsupported vector store" in result["error_message"]
+
+    def test_validate_filter_es_schema_aware_valid(self):
+        """ES schema-aware validation passes a well-formed clause."""
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+        mock_config.metadata.allow_partial_filtering = False
+
+        metadata_schemas = {
+            "test": [
+                {"name": "category", "type": "string"},
+                {"name": "year", "type": "integer"},
+            ]
+        }
+        filter_expr = [{"term": {"metadata.content_metadata.category.keyword": "doc"}}]
+        result = validate_filter_expr(
+            filter_expr, ["test"], metadata_schemas, config=mock_config
+        )
+        assert result["status"] is True
+
+    def test_validate_filter_es_schema_aware_unknown_field(self):
+        """ES schema-aware validation rejects unknown field in strict mode."""
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+        mock_config.metadata.allow_partial_filtering = False
+
+        metadata_schemas = {
+            "test": [{"name": "category", "type": "string"}],
+        }
+        filter_expr = [{"term": {"metadata.content_metadata.unknown_field": "x"}}]
+        result = validate_filter_expr(
+            filter_expr, ["test"], metadata_schemas, config=mock_config
+        )
+        assert result["status"] is False
+        assert "unknown_field" in (result.get("error_message") or "") or any(
+            "unknown_field" in d for d in (result.get("details") or [])
+        )
+
+    def test_validate_filter_es_partial_filtering(self):
+        """ES partial filtering returns success when at least one collection passes."""
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+        mock_config.metadata.allow_partial_filtering = True
+
+        metadata_schemas = {
+            "good": [{"name": "category", "type": "string"}],
+            "bad": [{"name": "year", "type": "integer"}],
+        }
+        filter_expr = [{"term": {"metadata.content_metadata.category.keyword": "doc"}}]
+        result = validate_filter_expr(
+            filter_expr, ["good", "bad"], metadata_schemas, config=mock_config
+        )
+        assert result["status"] is True
+        assert "good" in result["validated_collections"]
+        assert "bad" not in result["validated_collections"]
+
+
+class TestProcessFilterEsSchemaAware:
+    """process_filter_expr ES branch with metadata schema."""
+
+    def test_process_filter_es_normalizes_keyword(self):
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+
+        metadata_schema_data = [{"name": "status", "type": "string"}]
+        filter_expr = [{"term": {"metadata.content_metadata.status": "approved"}}]
+        result = process_filter_expr(
+            filter_expr,
+            "test_collection",
+            metadata_schema_data,
+            config=mock_config,
+        )
+        assert isinstance(result, list)
+        assert "metadata.content_metadata.status.keyword" in result[0]["term"]
+
+    def test_process_filter_es_generated_failure_returns_empty(self):
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+
+        metadata_schema_data = [{"name": "status", "type": "string"}]
+        filter_expr = [{"range": {"metadata.content_metadata.status": {"gt": "x"}}}]
+        result = process_filter_expr(
+            filter_expr,
+            "test_collection",
+            metadata_schema_data,
+            is_generated_filter=True,
+            config=mock_config,
+        )
+        assert result == []
+
+    def test_process_filter_es_user_failure_raises(self):
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+
+        metadata_schema_data = [{"name": "status", "type": "string"}]
+        filter_expr = [{"range": {"metadata.content_metadata.status": {"gt": "x"}}}]
+        with pytest.raises(ValueError):
+            process_filter_expr(
+                filter_expr,
+                "test_collection",
+                metadata_schema_data,
+                is_generated_filter=False,
+                config=mock_config,
+            )
 
 
 class TestProcessFilterExpr:

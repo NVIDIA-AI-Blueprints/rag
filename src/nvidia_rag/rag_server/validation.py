@@ -112,13 +112,17 @@ def validate_use_knowledge_base(value: Any) -> bool:
     return sanitize_boolean(value, "use_knowledge_base")
 
 
-def validate_temperature(value: Any) -> float:
+def validate_temperature(value: Any) -> float | None:
     """Direct validator for temperature field."""
+    if value is None:
+        return None
     return sanitize_float(value, "temperature")
 
 
-def validate_top_p(value: Any) -> float:
+def validate_top_p(value: Any) -> float | None:
     """Direct validator for top_p field."""
+    if value is None:
+        return None
     return sanitize_float(value, "top_p")
 
 
@@ -133,7 +137,7 @@ def validate_reranker_k(reranker_top_k: int, vdb_top_k: int | None) -> int:
 
 
 def validate_vdb_top_k(vdb_top_k: int) -> int:
-    """Validate that vdb_top_k is greater than 0.
+    """Validate that vdb_top_k is within the supported range (1..400).
 
     Args:
         vdb_top_k: The vector database top k value to validate
@@ -143,7 +147,7 @@ def validate_vdb_top_k(vdb_top_k: int) -> int:
 
     Raises:
         TypeError: If vdb_top_k is not an integer
-        ValueError: If vdb_top_k is 0 or negative
+        ValueError: If vdb_top_k is outside the supported range
     """
     if not isinstance(vdb_top_k, int) or isinstance(vdb_top_k, bool):
         raise TypeError(f"vdb_top_k must be an integer, got {type(vdb_top_k).__name__}")
@@ -152,4 +156,28 @@ def validate_vdb_top_k(vdb_top_k: int) -> int:
             f"vdb_top_k must be greater than 0, got {vdb_top_k}. "
             f"Please provide a positive integer for the number of documents to retrieve from the vector database."
         )
+    if vdb_top_k > 400:
+        raise ValueError(
+            f"vdb_top_k must be less than or equal to 400, got {vdb_top_k}. "
+            f"The /v1/generate and /v1/search request schemas enforce the same upper bound."
+        )
     return vdb_top_k
+
+
+SUMMARY_TIMEOUT_INVALID_MESSAGE = (
+    "Invalid timeout value. Timeout must be a positive integer."
+)
+
+
+def invalid_summary_timeout_response(timeout: int) -> dict[str, str]:
+    """Build the standard FAILED response for invalid get_summary timeout values."""
+    return {
+        "message": SUMMARY_TIMEOUT_INVALID_MESSAGE,
+        "status": "FAILED",
+        "error": f"Provided timeout value: {timeout}",
+    }
+
+
+def is_invalid_summary_timeout(timeout: int) -> bool:
+    """Return True when timeout is zero or negative."""
+    return timeout <= 0

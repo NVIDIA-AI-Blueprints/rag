@@ -31,6 +31,8 @@ Initial deployment typically takes 5-10 minutes as container images are pulled a
 
 2. Install Docker Engine. For more information, see [Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
 
+   a. Use Docker Engine 24.0 or later. Docker Engine 29.5.x is not supported for this release because it can fail to pull required NGC images.
+
 3. Install Docker Compose. For more information, see [install the Compose plugin](https://docs.docker.com/compose/install/linux/).
 
    a. Ensure the Docker Compose plugin version is 2.29.1 or later.
@@ -59,14 +61,16 @@ Use the following procedure to start all containers needed for this blueprint.
    ```
 
 
-2. Start the vector db containers from the repo root.
+2. Persistent data (Elasticsearch, SeaweedFS, Milvus/etcd, LanceDB, and the ingestor-server scratch dir) is stored in dedicated `rag-vol-*` Docker named volumes, which Docker Compose creates automatically the first time you bring the stack up. For inspection, backup, and reset commands — and for migrating data from the legacy `deploy/compose/volumes/` host directory — see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) in the troubleshooting guide.
+
+3. Start the vector db containers from the repo root.
 
    ```bash
    docker compose -f deploy/compose/vectordb.yaml up -d
    ```
 
 
-3. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
+4. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
 
    ```bash
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -127,7 +131,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-4. Start the rag containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
+5. Start the rag containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
 
    ```bash
    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
@@ -173,7 +177,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-5. Check the status of the deployment by running the following code.
+6. Check the status of the deployment by running the following code.
 
    ```bash
    docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
@@ -188,9 +192,8 @@ Use the following procedure to start all containers needed for this blueprint.
    compose-redis-1                         Up 5 minutes
    rag-frontend                            Up 9 minutes
    rag-server                              Up 9 minutes
-   milvus-standalone                       Up 36 minutes (healthy)
-   milvus-minio                            Up 35 minutes (healthy)
-   milvus-etcd                             Up 35 minutes (healthy)
+   elasticsearch                           Up 36 minutes (healthy)
+   seaweedfs                               Up 35 minutes (healthy)
    ```
 
 
@@ -236,7 +239,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
    source deploy/compose/perf_profile.env
    ```
 
-- If you don't have a GPU available, you can switch to CPU-only Milvus by following the instructions in [milvus-configuration.md](./milvus-configuration.md).
+- If you prefer Milvus over the default Elasticsearch vector database, or need CPU-only Milvus tuning, refer to [Milvus configuration](milvus-configuration.md) and [Vector database configuration](change-vectordb.md#switching-to-milvus) the Switching to Milvus section.
 
 - If you have a requirement to build the NeMo Retriever Library runtime container from source, you can do it by following instructions [here](https://github.com/NVIDIA/NeMo-Retriever).
 

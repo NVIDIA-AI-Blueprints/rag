@@ -53,7 +53,29 @@ export interface GenerateRequest {
   vlm_endpoint?: string;
   vdb_endpoint?: string;
   
-  // Optional other fields
-  filter_expr?: string;
+  // Optional other fields.
+  //
+  // `filter_expr` shape depends on the configured vector store:
+  //  - Milvus  → string expression (`content_metadata["x"] op v`).
+  //  - Elasticsearch → list of dicts (Elasticsearch Query DSL). Field paths
+  //    are `metadata.content_metadata.<name>`. A `.keyword` suffix is
+  //    appended ONLY for exact-match clauses (term/terms/prefix/wildcard/
+  //    match) on string-typed (or array<string>) fields — `.keyword` only
+  //    exists as a multi-field on string mappings. Numeric, datetime,
+  //    and boolean fields, plus all `range` clauses, use the bare path.
+  // See docs/custom-metadata.md for the full contract.
+  filter_expr?: string | Array<Record<string, unknown>>;
   stop?: string[];
+
+  /**
+   * Route this request through the agentic RAG pipeline.
+   *
+   * - `undefined` / omitted → server decides based on its own configuration
+   *   (`CONFIG.enable_agentic_rag`).
+   * - `true` → force the LangGraph plan-and-execute agentic pipeline.
+   * - `false` → force the standard RAG pipeline.
+   *
+   * Mirrors `Prompt.agentic` on the server (`bool | None`).
+   */
+  agentic?: boolean | null;
 }

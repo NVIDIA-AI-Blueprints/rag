@@ -35,9 +35,24 @@ export const useCitationUtils = () => {
     []
   );
 
+  // Convert a server-emitted stage identifier (e.g. "initial_retrieval",
+  // "verify_execute") into a human-readable label. Value-independent: any
+  // future stage name will be displayed sensibly without a code change.
+  const formatStage = useMemo(
+    () => (stage: string | undefined): string => {
+      if (!stage) return "";
+      const cleaned = stage.trim();
+      if (!cleaned) return "";
+      const spaced = cleaned.replace(/[_-]+/g, " ");
+      return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+    },
+    []
+  );
+
   return {
     isVisualType,
     formatScore,
     generateCitationId,
+    formatStage,
   };
 }; 

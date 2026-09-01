@@ -81,7 +81,7 @@ Launch dependent services and NIMs. For more information, refer to [Docker prere
    import os
    from getpass import getpass
 
-   # del os.environ['NVIDIA_API_KEY']  ## delete key and reset if needed
+   # del os.environ['NGC_API_KEY']  ## delete key and reset if needed
    if os.environ.get("NGC_API_KEY", "").startswith("nvapi-"):
        print("Valid NGC_API_KEY already in environment. Delete to reset")
    else:
@@ -94,9 +94,11 @@ Launch dependent services and NIMs. For more information, refer to [Docker prere
 
 3. Login to `nvcr.io` to pull dependency containers: `echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin`
 
-### Setup Milvus Vector Database Services
+### Setup Milvus Vector Database Services (optional)
 
-Milvus uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, refer to [milvus-configuration.md](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
+Use this section only if you opt into Milvus as the vector database. The default Docker deployment uses Elasticsearch. Refer to [Vector database configuration](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/change-vectordb.md) for more information. For Milvus-specific tuning (GPU/CPU, auth), refer to [Milvus configuration](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
+
+When Milvus is enabled, it uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, refer to [milvus-configuration.md](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
 
 1. Set the GPU device ID:
 
@@ -104,10 +106,10 @@ Milvus uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, 
 os.environ["VECTORSTORE_GPU_DEVICE_ID"] = "0"
 ```
 
-2. Start the Milvus vector database:
+2. Start the Milvus vector database (Compose `milvus` profile):
 
 ```bash
-docker compose -f ../deploy/compose/vectordb.yaml up -d
+docker compose -f ../deploy/compose/vectordb.yaml --profile milvus up -d
 ```
 
 ### Setup NIMs
@@ -157,7 +159,7 @@ Verify all containers are running and healthy.
 NAMES                           STATUS
 nemotron-ranking-ms        Up ... (healthy)
 compose-page-elements-1         Up ...
-compose-nemoretriever-ocr-1     Up ...
+compose-nemotron-ocr-1     Up ...
 compose-graphic-elements-1      Up ...
 compose-table-structure-1       Up ...
 nemotron-embedding-ms      Up ... (healthy)
@@ -172,7 +174,7 @@ nim-llm-ms                      Up ... (healthy)
 
 2.  Configure NeMo Retriever Library to use NVIDIA hosted cloud APIs using the following hosted models.
 
-- os.environ["OCR_HTTP_ENDPOINT"] = "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr"
+- os.environ["OCR_HTTP_ENDPOINT"] = "https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr-v1"
 
 - os.environ["OCR_INFER_PROTOCOL"] = "http"
 os.environ["YOLOX_HTTP_ENDPOINT"] = (
@@ -244,13 +246,19 @@ config_ingestor = NvidiaRAGConfig.from_yaml("config.yaml")
 # Update config for cloud deployment if using Option 2
 if DEPLOYMENT_MODE == "cloud":
     config_ingestor.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
+    config_ingestor.llm.model_name = "nvidia/nemotron-3-ultra-550b-a55b"
     config_ingestor.llm.server_url = ""  # Empty uses NVIDIA API catalog
+    config_ingestor.summarizer.model_name = "nvidia/nemotron-3-ultra-550b-a55b"
     config_ingestor.summarizer.server_url = ""  # Empty uses NVIDIA API catalog
 else:
     config_ingestor.embeddings.server_url = "http://nemotron-embedding-ms:8000/v1"
 
 ingestor = NvidiaRAGIngestor(config=config_ingestor)
 ```
+
+:::{note}
+The API examples below use `vdb_endpoint="http://localhost:9200"`, matching the default Elasticsearch vector database. If you use Milvus instead, use the `http://localhost:19530` URL value (or your Milvus service URL) for every `vdb_endpoint` argument and confirm that the `APP_VECTORSTORE_*` value targets Milvus.
+:::
 
 ### Create a New Collection
 
@@ -273,7 +281,7 @@ print(response)
 ### List All Collections
 
 ```python
-response = ingestor.get_collections(vdb_endpoint="http://localhost:19530")
+response = ingestor.get_collections(vdb_endpoint="http://localhost:9200")
 print(response)  
 ```
 
@@ -284,7 +292,7 @@ Upload documents to a collection. To update existing documents, use `update_docu
 ```python
 response = await ingestor.upload_documents(
     collection_name="test_library",
-    vdb_endpoint="http://localhost:19530",
+    vdb_endpoint="http://localhost:9200",
     blocking=False,
     split_options={"chunk_size": 512, "chunk_overlap": 150},
     filepaths=[
@@ -322,7 +330,7 @@ print(response)
 ```python
 response = await ingestor.update_documents(
     collection_name="test_library",
-    vdb_endpoint="http://localhost:19530",
+    vdb_endpoint="http://localhost:9200",
     blocking=False,
     filepaths=["../data/multimodal/woods_frost.docx"],
     generate_summary=False
@@ -336,7 +344,7 @@ print(response)
 ```python
 response = ingestor.get_documents(
     collection_name="test_library",
-    vdb_endpoint="http://localhost:19530",
+    vdb_endpoint="http://localhost:9200",
 )
 print(response)  
 ```
@@ -353,15 +361,15 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 # config_rag = NvidiaRAGConfig.from_dict({
 #     "llm": {
-#         "model_name": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+#         "model_name": "nvidia/nemotron-3-ultra-550b-a55b",
 #         "server_url": "",
 #     },
 #     "embeddings": {
-#         "model_name": "nvidia/llama-nemotron-embed-1b-v2",
+#         "model_name": "nvidia/llama-nemotron-embed-vl-1b-v2",
 #         "server_url": "https://integrate.api.nvidia.com/v1",
 #     },
 #     "ranking": {
-#         "model_name": "nvidia/llama-nemotron-rerank-1b-v2",
+#         "model_name": "nvidia/llama-nemotron-rerank-vl-1b-v2",
 #         "server_url": "",
 #     },
 # })
@@ -370,8 +378,11 @@ config_rag = NvidiaRAGConfig.from_yaml("config.yaml")
 
 # Update config for cloud deployment if using Option 2
 if DEPLOYMENT_MODE == "cloud":
+    config_rag.embeddings.model_name = "nvidia/llama-nemotron-embed-vl-1b-v2"
     config_rag.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
+    config_rag.ranking.model_name = "nvidia/llama-nemotron-rerank-vl-1b-v2"
     config_rag.ranking.server_url = ""  # Empty uses NVIDIA API catalog
+    config_rag.llm.model_name = "nvidia/nemotron-3-ultra-550b-a55b"
     config_rag.llm.server_url = ""  # Empty uses NVIDIA API catalog
 
 # Initialize NvidiaRAG with config
@@ -598,7 +609,7 @@ rag_custom = NvidiaRAG(config=config_rag, prompts="custom_prompts.yaml")
 response = ingestor.delete_documents(
     collection_name="test_library",
     document_names=["../data/multimodal/multimodal_test.pdf"],
-    vdb_endpoint="http://localhost:19530"
+    vdb_endpoint="http://localhost:9200"
 )
 print(response)  
 ```
@@ -606,7 +617,7 @@ print(response)
 ## Delete Collections
 
 ```python
-response = ingestor.delete_collections(vdb_endpoint="http://localhost:19530", collection_names=["test_library"])
+response = ingestor.delete_collections(vdb_endpoint="http://localhost:9200", collection_names=["test_library"])
 print(response)  
 ```
 For more information, refer to [Prompt Customization](prompt-customization.md#prompt-customization-in-python-library-mode).

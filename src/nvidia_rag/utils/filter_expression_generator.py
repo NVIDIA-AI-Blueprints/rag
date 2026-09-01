@@ -18,7 +18,7 @@
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -55,14 +55,21 @@ def _format_metadata_schema_for_prompt(metadata_schema: list[dict[str, Any]]) ->
     return json.dumps(filtered_schema, separators=(",", ":"))
 
 
-def _extract_filter_expression_from_response(response: Any) -> str | None:
+def _extract_filter_expression_from_response(
+    response: Any,
+    output_format: Literal["string", "json"] = "string",
+) -> str | list[dict[str, Any]] | None:
     """Extract the filter expression from LLM response.
 
     Args:
         response: Raw response from LLM (can be AIMessage object or string)
+        output_format: "string" for Milvus boolean expression syntax, "json" for
+            Elasticsearch DSL clause arrays
 
     Returns:
-        Extracted filter expression or None if not found
+        Extracted filter expression. For "string" output_format, returns a
+        Milvus filter string. For "json" output_format, returns a list of
+        ES filter clauses. Returns None if no usable filter could be extracted.
     """
     # Handle AIMessage objects by extracting their content
     if hasattr(response, "content"):
@@ -91,7 +98,31 @@ def _extract_filter_expression_from_response(response: Any) -> str | None:
         logger.warning("No filter expression found after removing thinking tokens")
         return None
 
-    return response
+    if output_format == "string":
+        return response
+
+    # output_format == "json": parse Elasticsearch DSL clause array
+    json_payload = response
+    fence_match = re.search(r"```(?:json)?\s*(.*?)```", json_payload, flags=re.DOTALL)
+    if fence_match:
+        json_payload = fence_match.group(1).strip()
+
+    try:
+        parsed = json.loads(json_payload)
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse JSON filter from LLM response: {e}")
+        return None
+
+    if not isinstance(parsed, list) or not all(isinstance(c, dict) for c in parsed):
+        logger.warning(
+            "Parsed filter is not a list of dict clauses; rejecting as malformed"
+        )
+        return None
+
+    if not parsed:
+        return None
+
+    return parsed
 
 
 def generate_filter_from_natural_language(
@@ -100,8 +131,10 @@ def generate_filter_from_natural_language(
     metadata_schema: list[dict[str, Any]],
     prompt_template: dict,
     llm: Any | None = None,
-    existing_filter_expr: str | None = None,
-) -> str | None:
+    existing_filter_expr: str | list[dict[str, Any]] | None = None,
+    run_config: dict[str, Any] | None = None,
+    output_format: Literal["string", "json"] = "string",
+) -> str | list[dict[str, Any]] | None:
     """Generate a filter expression from natural language request.
 
     Args:
@@ -110,21 +143,29 @@ def generate_filter_from_natural_language(
         metadata_schema: Metadata schema for the collection
         prompt_template: Prompt template for filter generation
         llm: LLM instance to use (if None, will create one with default settings)
-        existing_filter_expr: Existing filter expression to validate/improve (optional)
+        existing_filter_expr: Existing filter expression to validate/improve. May be
+            a Milvus boolean string or an Elasticsearch DSL clause list.
+        run_config: Optional LangChain run config (e.g. for usage collection in tracing)
+        output_format: "string" returns a Milvus boolean expression string;
+            "json" parses the LLM response as a JSON array of Elasticsearch
+            DSL clauses and returns list[dict].
 
     Returns:
-        Generated filter expression or None if no filter needed/possible
+        Generated filter expression or None if no filter needed/possible. Type
+        depends on `output_format`.
     """
     try:
         schema_text = _format_metadata_schema_for_prompt(metadata_schema)
         # Add existing filter expression to the prompt if provided
         existing_filter_context = ""
-        if (
-            existing_filter_expr
-            and isinstance(existing_filter_expr, str)
-            and existing_filter_expr.strip()
-        ):
+        if isinstance(existing_filter_expr, str) and existing_filter_expr.strip():
             existing_filter_context = f"\n**EXISTING FILTER EXPRESSION:**\n{existing_filter_expr}\n\nPlease validate this existing filter expression and improve it if needed based on the user request."
+        elif isinstance(existing_filter_expr, list) and existing_filter_expr:
+            existing_filter_context = (
+                "\n**EXISTING FILTER EXPRESSION:**\n"
+                f"{json.dumps(existing_filter_expr, separators=(',', ':'))}\n\n"
+                "Please validate this existing filter expression and improve it if needed based on the user request."
+            )
 
         filter_prompt = ChatPromptTemplate.from_messages(
             [
@@ -143,13 +184,19 @@ def generate_filter_from_natural_language(
 
         if llm is None:
             logger.debug(
-                "No LLM provided for filter expression generation, returning empty string"
+                "No LLM provided for filter expression generation, returning empty result"
             )
-            return ""
+            return [] if output_format == "json" else ""
 
-        response = llm.invoke(filter_prompt.format_messages(**chain_input))
+        messages = filter_prompt.format_messages(**chain_input)
+        if run_config:
+            response = llm.invoke(messages, config=run_config)
+        else:
+            response = llm.invoke(messages)
 
-        filter_expr = _extract_filter_expression_from_response(response)
+        filter_expr = _extract_filter_expression_from_response(
+            response, output_format=output_format
+        )
 
         return filter_expr
 

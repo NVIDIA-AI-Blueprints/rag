@@ -19,7 +19,7 @@ Output sequence length validation module
 This module contains integration tests to validate that the RAG server honors
 `min_tokens` and `max_tokens` generation parameters. It uploads a small set of
 documents, calls the `/v1/generate` API with explicit token limits, and
-verifies the number of output tokens using `tiktoken`.
+verifies output length using `usage.completion_tokens` from the API response.
 """
 
 import json
@@ -28,7 +28,6 @@ import os
 import time
 
 import aiohttp
-import tiktoken
 
 from ..base import BaseTestModule, TestStatus, test_case
 from ..utils.response_handlers import extract_streaming_text, print_response
@@ -41,8 +40,8 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
 
     The tests upload a small document to a dedicated collection and then issue
     generation requests with specific `min_tokens` and `max_tokens` values. The
-    output token count is computed locally using `tiktoken` and compared against
-    the requested limits.
+    output length is checked using `usage.completion_tokens` from the generate
+    response (streaming final chunk or JSON body).
     """
 
     COLLECTION_NAME = "test_osl"
@@ -309,8 +308,20 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
             )
             return False
 
-    async def _get_generated_text(self, *, min_tokens: int | None, max_tokens: int | None, ignore_eos: bool = True) -> str | None:
-        """Call /v1/generate with token parameters and return the generated text."""
+    async def _get_generated_text(
+        self,
+        *,
+        min_tokens: int | None,
+        max_tokens: int | None,
+        ignore_eos: bool = True,
+    ) -> tuple[str | None, int | None]:
+        """Call /v1/generate with token parameters.
+
+        Returns:
+            Tuple of (assistant message text, completion_tokens from usage), or
+            (None, None) on HTTP failure. completion_tokens may be None if the
+            response omits usage.
+        """
         logger.info("Starting request to RAG server with token limits")
         payload = {
             "messages": [
@@ -320,10 +331,11 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
                 }
             ],
             "collection_names": [self.COLLECTION_NAME],
-            "enable_citations": True, 
+            "enable_citations": True,
             "reranker_top_k": 5,
             "vdb_top_k": 10,
             "enable_reranker": True,
+            "model": "meta/llama-3.3-70b-instruct",
         }
         if min_tokens is not None:
             payload["min_tokens"] = min_tokens
@@ -343,6 +355,12 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
                 result = await print_response(response)
                 if response.status == 200:
                     logger.info("Successfully received response from server")
+                    completion_tokens: int | None = None
+                    usage = result.get("usage")
+                    if isinstance(usage, dict):
+                        raw_ct = usage.get("completion_tokens")
+                        if raw_ct is not None:
+                            completion_tokens = int(raw_ct)
                     if result.get("streaming_response"):
                         logger.debug("Processing streaming response format")
                         response_text = extract_streaming_text(result)
@@ -362,35 +380,27 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
                         else:
                             logger.warning("No choices found in response")
                             response_text = ""
-                    return response_text
+                    return response_text, completion_tokens
                 else:
                     logger.error(f"Request failed with status {response.status}")
-                    return None
+                    return None, None
 
         # Fallback return if no session was created or other issues
         logger.error("Failed to establish session or get response")
-        return None
-
-    def _count_output_tokens(self, text: str) -> int:
-        """Count tokens in text using cl100k_base encoding."""
-        try:
-            encoding = tiktoken.get_encoding("cl100k_base")
-            return len(encoding.encode(text or ""))
-        except Exception as e:
-            logger.error(f"❌ Error counting tokens: {e}")
-            return 0
+        return None, None
 
     @test_case(69, "Validate Output Sequence Length")
     async def _validate_output_sequence_length(self) -> bool:
         """Validate output sequence length equals specified tokens when min==max.
 
-        Ensures the number of generated output tokens equals the requested
-        `min_tokens` when `min_tokens == max_tokens` and `ignore_eos=True`.
+        Ensures `usage.completion_tokens` from `/v1/generate` matches the
+        requested `min_tokens` when `min_tokens == max_tokens` and
+        `ignore_eos=True` (within tolerance).
         """
         logger.info("Starting output sequence length validation test")
         start = time.time()
         try:
-            resp_text = await self._get_generated_text(
+            resp_text, completion_tokens = await self._get_generated_text(
                 min_tokens=self.MIN_TOKENS,
                 max_tokens=self.MIN_TOKENS,
                 ignore_eos=True,
@@ -409,31 +419,51 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
                 )
                 return False
 
-            token_count = self._count_output_tokens(resp_text)
-            logger.info(f"Got output sequence length as {token_count}")
-            expected = self.MIN_TOKENS
-            if token_count >= expected-50 and token_count <= expected+50:
+            if completion_tokens is None:
                 self.add_test_result(
                     self._validate_output_sequence_length.test_number,
                     self._validate_output_sequence_length.test_name,
-                    f"Validate output token count {token_count} is within 50 tokens of {expected}",
+                    "Validate output sequence length for min_tokens==max_tokens",
                     ["POST /v1/generate"],
-                    ["min_tokens", "max_tokens", "ignore_eos"],
+                    ["min_tokens", "max_tokens", "ignore_eos", "usage"],
+                    elapsed,
+                    TestStatus.FAILURE,
+                    "No usage.completion_tokens in generate response",
+                )
+                return False
+
+            logger.info(
+                f"Got output sequence length (completion_tokens) as {completion_tokens}"
+            )
+            expected = self.MIN_TOKENS
+            if (
+                completion_tokens >= expected - 50
+                and completion_tokens <= expected + 50
+            ):
+                self.add_test_result(
+                    self._validate_output_sequence_length.test_number,
+                    self._validate_output_sequence_length.test_name,
+                    f"Validate completion_tokens {completion_tokens} is within 50 of {expected}",
+                    ["POST /v1/generate"],
+                    ["min_tokens", "max_tokens", "ignore_eos", "usage"],
                     elapsed,
                     TestStatus.SUCCESS,
                 )
                 return True
             else:
-                logger.error(f"❌ Expected {expected} tokens, got {token_count}. Token count is not within 50 tokens of {expected}")
+                logger.error(
+                    f"❌ Expected ~{expected} completion_tokens, got {completion_tokens}. "
+                    "Not within 50 tokens of expected."
+                )
                 self.add_test_result(
                     self._validate_output_sequence_length.test_number,
                     self._validate_output_sequence_length.test_name,
-                    f"Validate output token count {token_count} is within 50 tokens of {expected}",
+                    f"Validate completion_tokens {completion_tokens} is within 50 of {expected}",
                     ["POST /v1/generate"],
-                    ["min_tokens", "max_tokens", "ignore_eos"],
+                    ["min_tokens", "max_tokens", "ignore_eos", "usage"],
                     elapsed,
                     TestStatus.FAILURE,
-                    f"Expected {expected} tokens, got {token_count}",
+                    f"Expected ~{expected} completion_tokens, got {completion_tokens}",
                 )
                 return False
         except Exception as e:

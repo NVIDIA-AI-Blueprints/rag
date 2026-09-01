@@ -22,6 +22,7 @@ import pytest
 import requests
 from fastapi import Request
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from pymilvus.exceptions import MilvusException
 
 from nvidia_rag.rag_server.response_generator import (
@@ -30,6 +31,9 @@ from nvidia_rag.rag_server.response_generator import (
     RAGResponse,
 )
 from nvidia_rag.rag_server.server import (
+    DocumentSearch,
+    Message,
+    Prompt,
     _extract_vdb_auth_token,
     validate_confidence_threshold_field,
 )
@@ -651,6 +655,35 @@ class TestServerErrorHandling:
 
 class TestServerValidation:
     """Tests for validation logic in server"""
+
+    def test_generate_request_rejects_vdb_top_k_above_max(self):
+        """Regression: UI/default value 410 must not reach generate retrieval."""
+        with pytest.raises(ValidationError, match="less than or equal to 400"):
+            Prompt(
+                messages=[Message(role="user", content="What is machine learning?")],
+                vdb_top_k=410,
+            )
+
+    def test_search_request_rejects_vdb_top_k_above_max(self):
+        """Regression: /search rejects the same vdb_top_k max as /generate."""
+        with pytest.raises(ValidationError, match="less than or equal to 400"):
+            DocumentSearch(query="What is machine learning?", vdb_top_k=410)
+
+    def test_generate_request_rejects_zero_top_k(self):
+        """Request schema matches runtime validation: top-k values are 1-based."""
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+            Prompt(
+                messages=[Message(role="user", content="What is machine learning?")],
+                vdb_top_k=0,
+            )
+
+    def test_search_request_rejects_zero_reranker_top_k(self):
+        """Request schema rejects zero before search reaches backend logic."""
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+            DocumentSearch(
+                query="What is machine learning?",
+                reranker_top_k=0,
+            )
 
     def test_validate_confidence_threshold_negative(self):
         """Test validate_confidence_threshold_field with negative value"""

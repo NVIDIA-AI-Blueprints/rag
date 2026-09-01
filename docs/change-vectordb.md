@@ -2,59 +2,49 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-# Configure Elasticsearch as Your Vector Database for NVIDIA RAG Blueprint
+# Vector Database Configuration for NVIDIA RAG Blueprint
 
-The [NVIDIA RAG Blueprint](readme.md) supports multiple vector database backends including [Milvus](https://milvus.io/docs) and [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database).
-Elasticsearch provides robust search capabilities and can be used as an alternative to Milvus for storing and retrieving document embeddings.
+[NVIDIA RAG Blueprint](readme.md) is compatible with several vector database backends, including [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database) and [Milvus](https://milvus.io/docs). Elasticsearch is the default option. Standard deployments automatically use Elasticsearch—no manual configuration is required. In both the RAG and Ingestor servers, the defaults are set to `APP_VECTORSTORE_NAME=elasticsearch` and `APP_VECTORSTORE_URL=http://elasticsearch:9200` in Docker Compose, or to the bundled ECK Elasticsearch HTTP service when using Helm.
 
-After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint),
-use this documentation to configure Elasticsearch as your vector database.
+Milvus is available as an optional secondary backend if you prefer to use that stack.
+
+After you’ve [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), use this page to configure Elasticsearch settings (including authentication and index options), work with the default Elasticsearch setup, switch to Milvus, or connect a custom vector database.
 
 :::{tip}
 To navigate this page more easily, click the outline button at the top of the page. ![outline-button](assets/outline-button.png)
+:::
 
+## Configuring Elasticsearch
 
-## Prerequisites and Important Considerations Before You Start
+Use this section as a map to the topics below.
 
-The following are some important notes to keep in mind before you switch from Milvus to Elasticsearch.
+**Elasticsearch client (library installs)** – For local development without the pre-built Docker images, enable Elasticsearch support by installing nvidia_rag[elasticsearch] using `pip install nvidia_rag[elasticsearch]` or `uv sync --extra elasticsearch`. The Docker images already include this dependency.
 
-- **Elasticsearch Dependency** – Elasticsearch support is provided as an optional dependency. For local development, install it with:
-    ```bash
-    pip install nvidia_rag[elasticsearch]
-    ```
-    Or when using uv:
-    ```bash
-    uv sync --extra elasticsearch
-    ```
-    The Docker images already include this dependency by default.
+- **Changing the backend** – If you switch between vector databases (for example Elasticsearch and Milvus), you must re-upload your documents; data is not migrated automatically.
 
-- **Fresh Setup Required** – When you switch from Milvus to Elasticsearch, you need to re-upload your documents. The data stored in Milvus isn't automatically migrated to Elasticsearch.
+- **Port** – Elasticsearch listens on port 9200 by default. Ensure it is available or adjust your configuration.
 
-- **Port Availability** – Elasticsearch runs on port 9200 by default. Ensure this port is available and not in conflict with other services.
+- **Elasticsearch data volume (Docker Compose)** – Elasticsearch persists data in a dedicated `rag-vol-elasticsearch` Docker named volume (host path: `/var/lib/docker/volumes/rag-vol-elasticsearch/_data/`). For inspection, backup, reset, and migration from the legacy `deploy/compose/volumes/` host directory, see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) in the troubleshooting guide.
 
-- **Folder Permissions** – Elasticsearch data is persisted in the `volumes/elasticsearch` directory. Make sure you create the directory and have appropriate permissions set.
+- **Authentication** – Refer to [Elasticsearch Authentication](elasticsearch-configuration.md#elasticsearch-authentication) for xpack, API keys, and Helm (ECK) credentials.
 
-    ```bash
-    sudo mkdir -p deploy/compose/volumes/elasticsearch/
-    sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/
-    ```
+- **Index and search tuning** – Adjust index type, dense or hybrid search, and related behavior with `APP_VECTORSTORE_*` in the RAG and Ingestor compose files or Helm `envVars` (for example `APP_VECTORSTORE_SEARCHTYPE`, `APP_VECTORSTORE_INDEXTYPE`).
 
-   :::{note}
-   If the Elasticsearch container fails to start due to permission issues, you may optionally use `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access
-   :::
+- **GPU indexing** – For optional GPU-accelerated vector indexing (requires an Elastic Enterprise license and a GPU-enabled image), see [Elasticsearch Configuration](elasticsearch-configuration.md).
 
+## Using Elasticsearch (Default)
 
-## Docker Compose Configuration for Elasticsearch Vector Database
+The following steps describe the default Elasticsearch deployment for Docker Compose and Helm.
 
-Use the following steps to configure Elasticsearch as your vector database in Docker.
+### Docker Compose
 
-1. Start the Elasticsearch container.
+1. Start the vector database stack. Elasticsearch is included in the default profile for `vectordb.yaml` (you may pass `--profile elasticsearch` explicitly if you prefer).
 
    ```bash
-   docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch up -d
+   docker compose -f deploy/compose/vectordb.yaml up -d
    ```
 
-2. Set the vector database configuration.
+2. Confirm vector database settings. The compose files for the RAG and Ingestor servers already default to Elasticsearch; set or export these if you need to be explicit:
 
    ```bash
    export APP_VECTORSTORE_URL="http://elasticsearch:9200"
@@ -72,15 +62,15 @@ Use the following steps to configure Elasticsearch as your vector database in Do
 
    Access the RAG UI at `http://<host-ip>:8090`. In the UI, navigate to: Settings > Endpoint Configuration > Vector Database Endpoint → set to `http://elasticsearch:9200`.
 
-## Helm Deployment to Configure Elasticsearch as Vector Database
+### Helm
 
-If you're using Helm for deployment, use the following steps to configure Elasticsearch as your vector database.
+If you're using Helm for deployment, Elasticsearch (ECK) is enabled by default. Use the following steps to align the release with the default vector database.
 
 :::{note}
 **Performance Consideration**: Slow VDB upload is observed in Helm deployments for Elasticsearch (ES). For more details, refer to the [troubleshooting documentation](./troubleshooting.md).
 :::
 
-### Prerequisites
+#### Prerequisites
 
 1. Install the ECK (Elastic Cloud on Kubernetes) operator:
 
@@ -112,11 +102,11 @@ If you're using Helm for deployment, use the following steps to configure Elasti
    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=elastic-operator -n elastic-system --timeout=300s
    ```
 
-### Configuration Steps
+#### Configuration Steps
 
-1. Configure Elasticsearch as the vector database in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+1. Confirm Elasticsearch settings in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
-   Update both the RAG server and ingestor-server sections:
+   The chart defaults to Elasticsearch; ensure both the RAG server and ingestor-server sections match your ECK service URL and credentials:
 
     ```yaml
     # RAG Server configuration
@@ -135,7 +125,7 @@ If you're using Helm for deployment, use the following steps to configure Elasti
         APP_VECTORSTORE_PASSWORD: ""
    ```
 
-2. Enable Elasticsearch deployment in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+Ensure that Elasticsearch (ECK) is enabled in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). This is the default setting; use the following block as the reference configuration:
 
    ```yaml
    eck-elasticsearch:
@@ -188,7 +178,7 @@ If you're using Helm for deployment, use the following steps to configure Elasti
    # Expected: {"cluster_name":"rag-eck-elasticsearch","status":"yellow" or "green",...}
    ```
 
-5. (Optional) Enable authentication - see [Elasticsearch Authentication (Helm)](#helm-chart) section below if you need to secure your Elasticsearch instance.
+5. (Optional) Enable authentication - see [Elasticsearch Authentication (Helm)](elasticsearch-configuration.md#helm-chart) if you need to secure your Elasticsearch instance.
 
 6. After the Helm deployment, port-forward the RAG UI service:
 
@@ -198,17 +188,16 @@ If you're using Helm for deployment, use the following steps to configure Elasti
 
 7. Access the UI at `http://<host-ip>:3000` and set Settings > Endpoint Configuration > Vector Database Endpoint to `http://rag-eck-elasticsearch-es-http:9200`.
 
-
-## Verify Your Elasticsearch Vector Database Setup
+### Verify Your Elasticsearch Vector Database Setup
 
 After you complete the setup, verify that Elasticsearch is running correctly:
 
-### For Docker Deployment:
+#### For Docker Deployment:
 ```bash
 curl -X GET "localhost:9200/_cluster/health?pretty"
 ```
 
-### For Helm deployments:
+#### For Helm deployments:
 ```bash
 # 1. Get the name of your Elasticsearch pod:
 kubectl get pods -n rag | grep elasticsearch
@@ -224,458 +213,86 @@ curl -X GET "localhost:9200/_cluster/health?pretty"
 
 You should see a response that indicates the cluster status is green or yellow, confirming that Elasticsearch is operational and ready to store embeddings.
 
-## Elasticsearch Authentication
+## Switching to Milvus
 
-Enable authentication for Elasticsearch to secure your vector database.
+Use Milvus when you want the optional Milvus stack instead of Elasticsearch. You must re-upload your documents after switching; embeddings stored in Elasticsearch are not migrated to Milvus automatically.
 
 ### Docker Compose
 
-#### 1. Configure Elasticsearch Authentication (xpack)
+1. Start the Milvus profile (Milvus, etcd, SeaweedFS object store, and related services).
 
-Edit `deploy/compose/vectordb.yaml` to enable xpack security by setting `xpack.security.enabled` to true:
-```yaml
-environment:
-  - xpack.security.enabled=true
-```
+   ```bash
+   docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
+   ```
 
-Uncomment the username and password environment variables in the elasticsearch service in `deploy/compose/vectordb.yaml`:
-```yaml
-- ELASTIC_USERNAME=${APP_VECTORSTORE_USERNAME}
-- ELASTIC_PASSWORD=${APP_VECTORSTORE_PASSWORD}
-```
+2. Point the application at Milvus.
 
-Add authentication in `healthcheck` in `deploy/compose/vectordb.yaml` by uncommenting the following:
-```yaml
-test: ["CMD", "curl", "-s", "-f", "-u", "${APP_VECTORSTORE_USERNAME}:${APP_VECTORSTORE_PASSWORD}", "http://localhost:9200/_cat/health"]
-```
-and commenting out
-```yaml
-test: ["CMD", "curl", "-s", "-f", "http://localhost:9200/_cat/health"]
-```
+   ```bash
+   export APP_VECTORSTORE_NAME="milvus"
+   export APP_VECTORSTORE_URL="http://milvus:19530"
+   ```
 
+3. Relaunch the RAG and ingestion services.
 
-#### 2. Start Elasticsearch Container with Credentials
+   ```bash
+   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+   docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+   ```
 
-Start the Elasticsearch container with username and password:
+4. Update the RAG UI configuration.
 
-```bash
-export APP_VECTORSTORE_USERNAME="elastic" # elastic recommended
-export APP_VECTORSTORE_PASSWORD="your-secure-password"
+   Settings > Endpoint Configuration > Vector Database Endpoint → `http://milvus:19530`.
 
-docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch up -d
-```
+### Helm
 
-#### 3. Generate Elasticsearch API Key (Optional but Recommended)
+Configure [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) so Milvus is deployed, ECK Elasticsearch is disabled, and both servers use the Milvus endpoint.
 
-If you prefer to use API key authentication instead of username/password (recommended for production), generate an API key using curl. You need the username and password from the previous step.
+1. Set the vector database environment variables on the RAG server and ingestor server:
 
-```bash
-# Either provide base64 apikey (base64 of "id:secret")
-export APP_VECTORSTORE_APIKEY="base64-id-colon-secret"
-# Or provide split ID/SECRET
-export APP_VECTORSTORE_APIKEY_ID="your_id"
-export APP_VECTORSTORE_APIKEY_SECRET="your_secret"
+    ```yaml
+    # RAG Server configuration
+    envVars:
+      APP_VECTORSTORE_URL: "http://milvus:19530"
+      APP_VECTORSTORE_NAME: "milvus"
+      APP_VECTORSTORE_USERNAME: ""
+      APP_VECTORSTORE_PASSWORD: ""
 
-docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch up -d
-docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
-```
+    # Ingestor Server configuration
+    ingestor-server:
+      envVars:
+        APP_VECTORSTORE_URL: "http://milvus:19530"
+        APP_VECTORSTORE_NAME: "milvus"
+        APP_VECTORSTORE_USERNAME: ""
+        APP_VECTORSTORE_PASSWORD: ""
+    ```
 
-### Get an Elasticsearch API key
+2. Disable ECK Elasticsearch and deploy Milvus via nv-ingest:
 
-If security is enabled, create an API key using either curl. You need a user with permission to create API keys (e.g., the built-in `elastic` superuser in dev).
+   ```yaml
+   eck-elasticsearch:
+     enabled: false
 
-#### 1. Using curl (replace credentials and URL as appropriate):
-```bash
-# If running inside the cluster, port-forward first:
-# kubectl -n rag port-forward svc/rag-eck-elasticsearch-es-http 9200:9200
+   nv-ingest:
+     milvusDeployed: true
+   ```
 
-curl -u elastic:your-secure-password \
-  -X POST "http://127.0.0.1:9200/_security/api_key" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "rag-api-key",
-    "role_descriptors": {}
-  }'
-```
+   Adjust additional `nv-ingest.milvus` settings in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) as needed (resources, images, authentication, and so on).
 
-Example response:
-```json
-{
-  "id": "AbCdEfGhIj",
-  "name": "rag-api-key",
-  "expiration": null,
-  "api_key": "ZyXwVuTsRq",
-  "encoded": null
-}
-```
+3. Deploy or upgrade the Helm release as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-Convert the API key to base64:
-
-```bash
-# Base64 is computed over "<id>:<api_key>"
-echo -n "AbCdEfGhIj:ZyXwVuTsRq" | base64
-# Output example: QWJ...cXE=
-```
-
-#### 4. Set Environment Variables for Authentication
-
-Choose ONE of the following authentication methods:
-
-**Option A: API Key Authentication (Recommended)**
-
-Set environment variables using the base64-encoded API key or split ID/SECRET:
-
-```bash
-# Either provide base64 apikey (base64 of "id:secret")
-export APP_VECTORSTORE_APIKEY="QWJ...cXE="
-
-# Or provide split ID/SECRET
-export APP_VECTORSTORE_APIKEY_ID="AbCdEfGhIj"
-export APP_VECTORSTORE_APIKEY_SECRET="ZyXwVuTsRq"
-```
-
-**Option B: Username/Password Authentication**
-
-If you prefer to use username/password instead of API key:
-
-```bash
-export APP_VECTORSTORE_USERNAME="elastic"
-export APP_VECTORSTORE_PASSWORD="your-secure-password"
-```
-
-#### 5. Start RAG Server and Ingestor Server
-
-Start the RAG and Ingestor services with the authentication credentials:
-
-```bash
-docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
-```
+4. Verify Milvus pods and services, then set the RAG UI vector endpoint to match your Milvus HTTP/gRPC service (commonly `http://milvus:19530` from application pods when using the default `fullnameOverride`).
 
 :::{note}
-API key authentication takes precedence over username/password when both are configured.
+Kubernetes DNS names may include your Helm release prefix. Use `kubectl get svc -n rag` to confirm the Milvus service hostname if connections fail.
 :::
 
+## Elasticsearch Authentication
 
-### Helm Chart
-
-Follow these steps to enable authentication for Elasticsearch in your Helm deployment.
-
-#### 1. Enable Elasticsearch Authentication
-
-Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable X-Pack security. Set the following explicitly:
-
-```yaml
-eck-elasticsearch:
-  nodeSets:
-  - name: default
-    config:
-      node.store.allow_mmap: false
-      xpack.security.enabled: true
-      xpack.security.transport.ssl.enabled: true
-```
-
-:::{important}
-**Key Configuration Flags:**
-- `xpack.security.enabled: true` - Enables authentication (default user: `elastic`). Set this explicitly.
-- `xpack.security.transport.ssl.enabled: true` - Enables SSL for node-to-node communication. Set this explicitly.
-:::
-
-#### 2. Replace Readiness Probe When Security Is Enabled
-
-When X-Pack security is enabled, replace the current `readinessProbe` section under `eck-elasticsearch.nodeSets[0]` in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) with the ECK default probe (so the pod uses the readiness port script instead of an unauthenticated curl check). Ensure the following `podTemplate` is present under the same `nodeSets` entry:
-
-```yaml
-eck-elasticsearch:
-  nodeSets:
-  - name: default
-    podTemplate:
-      spec:
-        containers:
-        - name: elasticsearch
-          readinessProbe:
-            exec:
-              command:
-              - bash
-              - -c
-              - /mnt/elastic-internal/scripts/readiness-port-script.sh
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            timeoutSeconds: 5
-            failureThreshold: 3
-```
-
-#### 3. Deploy with Authentication Enabled
-
-After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
-
-Wait for Elasticsearch to restart:
-
-```bash
-# Monitor pod restart
-kubectl get pods -n rag -w | grep elasticsearch
-
-# Wait for pod to be ready
-kubectl wait --for=condition=ready pod -l elasticsearch.k8s.elastic.co/cluster-name=rag-eck-elasticsearch -n rag --timeout=300s
-```
-
-#### 3. Retrieve Elasticsearch Password from Secret
-
-When authentication is enabled, ECK automatically creates a Kubernetes secret containing the `elastic` user password:
-
-```bash
-# Find the Elasticsearch user secret
-kubectl get secrets -n rag | grep elastic-user
-# Expected: rag-eck-elasticsearch-es-elastic-user
-
-# Retrieve the password
-ES_PASSWORD=$(kubectl get secret rag-eck-elasticsearch-es-elastic-user -n rag -o jsonpath='{.data.elastic}' | base64 -d)
-echo "Elasticsearch password: $ES_PASSWORD"
-```
-
-:::{tip}
-Save this password securely. The password is auto-generated by ECK and persists across pod restarts unless the secret is deleted.
-:::
-
-#### 5. Update Deployment with Credentials
-
-Configure the RAG server and ingestor-server to use the retrieved credentials.
-**Update values.yaml (Recommended for Production)**
-
-Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) and set the following **new** values for Elasticsearch authentication:
-
-- **APP_VECTORSTORE_USERNAME:** set to `"elastic"` (the default Elasticsearch superuser).
-- **APP_VECTORSTORE_PASSWORD:** set to the password you retrieved in step 4 (i.e. the value of `$ES_PASSWORD`, or paste the output of the `kubectl get secret ... -o jsonpath='{.data.elastic}' | base64 -d` command).
-
-Example (replace `your-retrieved-password` with your actual `$ES_PASSWORD`):
-
-```yaml
-# RAG Server configuration
-envVars:
-  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200"
-  APP_VECTORSTORE_NAME: "elasticsearch"
-  APP_VECTORSTORE_USERNAME: "elastic"
-  APP_VECTORSTORE_PASSWORD: "your-retrieved-password"   # use $ES_PASSWORD from step 3
-
-# Ingestor Server configuration
-ingestor-server:
-  envVars:
-    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200"
-    APP_VECTORSTORE_NAME: "elasticsearch"
-    APP_VECTORSTORE_USERNAME: "elastic"
-    APP_VECTORSTORE_PASSWORD: "your-retrieved-password"   # use $ES_PASSWORD from step 3
-```
-
-Then apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
-
-#### 5. (Optional) Use API Key Authentication
-
-For advanced use cases or production environments, you can use Elasticsearch API keys instead of username/password authentication.
-
-**Generate an API Key:**
-
-First, port-forward to access Elasticsearch:
-
-```bash
-kubectl port-forward -n rag svc/rag-eck-elasticsearch-es-http 9200:9200
-```
-
-Then generate an API key using the elastic user:
-
-```bash
-# Get the elastic password
-ES_PASSWORD=$(kubectl get secret rag-eck-elasticsearch-es-elastic-user -n rag -o jsonpath='{.data.elastic}' | base64 -d)
-
-# Create an API key
-curl -u elastic:$ES_PASSWORD \
-  -X POST "http://localhost:9200/_security/api_key" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "rag-api-key",
-    "role_descriptors": {}
-  }'
-```
-
-Example response:
-```json
-{
-  "id": "AbCdEfGhIj",
-  "name": "rag-api-key",
-  "api_key": "ZyXwVuTsRq"
-}
-```
-
-**Encode the API Key:**
-
-```bash
-# Base64 encode the "id:api_key" format
-echo -n "AbCdEfGhIj:ZyXwVuTsRq" | base64
-# Output example: QWJDZEVmR2hJajpaeVh3VnVUc1Jx
-```
-
-**Configure with API Key:**
-
-Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
-
-```yaml
-# RAG Server configuration - Option 1: Base64 encoded API key
-envVars:
-  APP_VECTORSTORE_APIKEY: "QWJDZEVmR2hJajpaeVh3VnVUc1Jx"
-  # Leave username/password empty
-  APP_VECTORSTORE_USERNAME: ""
-  APP_VECTORSTORE_PASSWORD: ""
-
-# Ingestor Server configuration - Option 1: Base64 encoded API key
-ingestor-server:
-  envVars:
-    APP_VECTORSTORE_APIKEY: "QWJDZEVmR2hJajpaeVh3VnVUc1Jx"
-    APP_VECTORSTORE_USERNAME: ""
-    APP_VECTORSTORE_PASSWORD: ""
-```
-
-Or use split ID/SECRET format:
-
-```yaml
-# RAG Server configuration - Option 2: Split ID and secret
-envVars:
-  APP_VECTORSTORE_APIKEY_ID: "AbCdEfGhIj"
-  APP_VECTORSTORE_APIKEY_SECRET: "ZyXwVuTsRq"
-  APP_VECTORSTORE_USERNAME: ""
-  APP_VECTORSTORE_PASSWORD: ""
-
-# Ingestor Server configuration - Option 2: Split ID and secret
-ingestor-server:
-  envVars:
-    APP_VECTORSTORE_APIKEY_ID: "AbCdEfGhIj"
-    APP_VECTORSTORE_APIKEY_SECRET: "ZyXwVuTsRq"
-    APP_VECTORSTORE_USERNAME: ""
-    APP_VECTORSTORE_PASSWORD: ""
-```
-
-Then apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
-
-:::{note}
-**API Key vs Username/Password:**
-- API keys are recommended for production environments and applications
-- API keys can have specific permissions and expiration dates
-- API keys can be rotated without changing the elastic user password
-- **API key authentication takes precedence** when both username/password and API keys are configured
-:::
-
-#### 6. Verify Authentication
-
-Test that the services can connect to Elasticsearch with authentication:
-
-```bash
-# Check ingestor-server logs for successful connection
-kubectl logs -n rag -l app=ingestor-server --tail=20
-
-# Test Elasticsearch connection manually
-ES_PASSWORD=$(kubectl get secret rag-eck-elasticsearch-es-elastic-user -n rag -o jsonpath='{.data.elastic}' | base64 -d)
-kubectl exec -n rag rag-eck-elasticsearch-es-default-0 -- curl -s -u elastic:$ES_PASSWORD http://localhost:9200/_cluster/health
-```
-
+For Elasticsearch authentication configuration (xpack security, API keys, and ECK credentials), refer to [Elasticsearch Configuration](elasticsearch-configuration.md#elasticsearch-authentication).
 
 ## Using VDB Auth Token at Runtime via APIs (Enterprise Feature)
 
-When using Elasticsearch as the vector database, you can pass a per-request VDB authentication token via the HTTP `Authorization` header. The servers forward this token to Elasticsearch for that request. This enables per-user authentication or per-request scoping without changing server env configuration.
-
-Prerequisite:
-- Ensure Elasticsearch authentication is enabled so security is enforced. In Elasticsearch this typically requires `xpack.security.enabled=true`. See the [Elasticsearch Authentication](#elasticsearch-authentication) section above for enabling security via Docker Compose or Helm and for obtaining API keys or setting credentials.
-
-### Set Up Runtime Token and Endpoints
-
-Before making API requests with authentication, export the required environment variables.
-
-**1. Export service endpoints:**
-
-```bash
-export INGESTOR_URL="http://localhost:8082"
-export RAG_URL="http://localhost:8081"
-```
-
-**2. Export authentication token:**
-
-Runtime authentication via the `Authorization` header only supports Elasticsearch API keys. Export your API key token:
-
-```bash
-# Export your bearer token
-export ES_VDB_TOKEN="your-bearer-token"
-```
-
-:::{note}
-Bearer token authentication (OAuth/OIDC/SAML) is an enterprise support feature and not available in the free version of Elasticsearch. For most use cases, use Elasticsearch API keys as shown in [Generate Elasticsearch API Key](#3-generate-elasticsearch-api-key-optional-but-recommended) above.
-:::
-
-### Header format
-
-Use bearer authentication in your API requests:
-
-```
-Authorization: Bearer <token>
-```
-
-### Ingestor Server examples
-
-- List documents:
-
-```bash
-curl -G "$INGESTOR_URL/v1/documents" \
-  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
-  --data-urlencode "collection_name=es_demo_collection"
-```
-
-- Delete a collection:
-
-```bash
-curl -X DELETE "$INGESTOR_URL/v1/collections" \
-  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
-  --data-urlencode "collection_names=es_demo_collection"
-```
-
-:::{note}
-You can also set `vdb_endpoint` in your request payload to override the configured `APP_VECTORSTORE_URL`.
-:::
-
-### RAG Server examples
-
-- Search:
-
-```bash
-curl -X POST "$RAG_URL/v1/search" \
-  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "what is vector search?",
-    "use_knowledge_base": true,
-    "collection_names": ["es_demo_collection"],
-    "vdb_endpoint": "'"$APP_VECTORSTORE_URL"'",
-    "reranker_top_k": 0,
-    "vdb_top_k": 3
-  }'
-```
-
-- Generate with streaming:
-
-```bash
-curl -N -X POST "$RAG_URL/v1/generate" \
-  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role":"user","content":"Give a short summary of vector databases"}],
-    "use_knowledge_base": true,
-    "collection_names": ["es_demo_collection"],
-    "vdb_endpoint": "'"$APP_VECTORSTORE_URL"'",
-    "reranker_top_k": 0,
-    "vdb_top_k": 3
-  }'
-```
-
-### Troubleshooting
-- If you receive authentication/authorization errors from Elasticsearch, verify your token (API key validity, scopes, and expiration).
-- Ensure the server is not also configured with conflicting credentials for the same request.
-- Confirm that `APP_VECTORSTORE_NAME=elasticsearch` and `APP_VECTORSTORE_URL` are set correctly.
+For runtime VDB token authentication with Elasticsearch, refer to [Elasticsearch Configuration](elasticsearch-configuration.md#using-vdb-auth-token-at-runtime-via-apis-enterprise-feature).
 
 # Define Your Own Vector Database
 
@@ -891,7 +508,7 @@ Follow these steps to add your custom vector database to the NVIDIA RAG servers 
     Or, you may edit the files locally to show your custom value. Search for `APP_VECTORSTORE_NAME` and adjust defaults if desired:
     ```yaml
     # Type of vectordb used to store embedding (supports "milvus", "elasticsearch", or a custom value like "your_custom_vdb")
-    APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"milvus"}
+    APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"elasticsearch"}
     # URL on which vectorstore is hosted
     APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://your-custom-vdb:1234}
     ```
@@ -1001,11 +618,14 @@ Update your [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) fil
 
 ### Disable Default Vector Database and Add Custom Helm Chart
 
-1. **Disable Milvus in the NeMo Retriever Library configuration:**
+**Disable the chart-managed vector databases you are replacing** in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). The default configuration deploys Elasticsearch (ECK) and keeps Milvus optional through nv-ingest; for a custom Helm chart backend, disable any bundled backends you no longer need—for example:
+
    ```yaml
+   eck-elasticsearch:
+     enabled: false
+
    nv-ingest:
      enabled: true
-     # Disable Milvus deployment
      milvusDeployed: false
      milvus:
        enabled: false
@@ -1187,6 +807,8 @@ The integration process remains the same: create your VDB class, register it, co
 
 ## Related Topics
 
+- [Elasticsearch Configuration](elasticsearch-configuration.md) (authentication, GPU indexing, runtime VDB tokens)
+- [Milvus Configuration](milvus-configuration.md) (GPU/CPU tuning, authentication, runtime VDB tokens)
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)

@@ -22,6 +22,15 @@ interface CitationMetadataProps {
   score?: number;
 }
 
+/**
+ * Source / relevance metadata row rendered below an expanded citation.
+ *
+ * The `Citation.stage` field is intentionally not rendered here — per
+ * the #514 review the visual stage badges (header pill + this expanded
+ * row) were dropped. The data still flows through `Citation.stage` for
+ * future use (debugging, agentic-RAG reasoning panel), it's simply not
+ * surfaced in the citations UI.
+ */
 export const CitationMetadata = ({ source, score }: CitationMetadataProps) => {
   const { formatScore } = useCitationUtils();
 

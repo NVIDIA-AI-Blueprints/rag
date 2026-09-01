@@ -1,0 +1,238 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Tier 3 Harbor eval for rag-* skills.
+# Three triggers:
+#   1. push to pull-request/*  → diff-based: only eval skills changed in the PR
+#   2. schedule (nightly)      → all rag-* cpu skills
+#   3. workflow_dispatch        → manual trigger with skill selector
+#
+# Note: cve-fix skill requires NSPect (NVIDIA internal tool) — GitHub Actions
+# runners cannot reach it (not security approved). cve-fix runs via GitLab CI
+# on the mirror repo (gitlab-master.nvidia.com/chat-labs/OpenSource/rag).
+#
+# Uses dorny/paths-filter for cumulative PR diff (not per-push) — same
+# reason as skills-eval.yml. copy-pr-bot merge commits don't always
+# touch skills/ even when the PR does.
+
+name: Skills Eval
+
+on:
+  push:
+    branches:
+      - "pull-request/[0-9]+"
+  schedule:
+    - cron: "0 2 * * *" # 2am UTC nightly — all rag-* cpu skills
+  workflow_dispatch:
+    inputs:
+      skills:
+        description: "Skill to eval (* for all, or pick one)"
+        required: false
+        default: "*"
+        type: choice
+        options:
+          - "*"
+          - rag-blueprint
+          - rag-eval
+          - rag-perf
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: skills-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  eval:
+    name: Eval changed skills against PR
+    runs-on: [self-hosted, rag-eval]
+
+    # 4-hour cap: 8 cpu skills × ~15 min each = 2h max with 1.5x timeouts.
+    # Nightly runs all skills; PR runs only changed ones so usually much faster.
+    timeout-minutes: 240
+
+    if: startsWith(github.ref, 'refs/heads/pull-request/') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+
+    steps:
+      - name: Pre-checkout cleanup — remove root-owned Docker volumes
+        # Must run BEFORE checkout. Root-owned Milvus/MinIO/etcd files from
+        # prior runs block git clean. Docker (running as root inside the
+        # container) removes them. We mount the PARENT dir and `rm` the
+        # target by name — this works even when both the target AND its
+        # parent are root-owned (e.g. when a trial agent's compose file
+        # with a relative bind mount caused Docker to mkdir -p the chain
+        # as root, leaving an empty root-owned dir that the ubuntu runner
+        # can't rmdir because it lacks write on the root-owned parent).
+        run: |
+          WORKSPACE="${GITHUB_WORKSPACE:-/home/ubuntu/actions-runner/_work/rag/rag}"
+          for vol_dir in deploy/compose/volumes ci/volumes ci/deploy/compose ci/deploy; do
+            TARGET="$WORKSPACE/$vol_dir"
+            if [ -e "$TARGET" ]; then
+              PARENT="$(dirname "$TARGET")"
+              NAME="$(basename "$TARGET")"
+              echo "Cleaning $TARGET"
+              docker run --rm -v "$PARENT:/parent" alpine \
+                sh -c "rm -rf \"/parent/$NAME\""
+            fi
+          done
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Extract PR number + base
+        id: pr
+        if: github.event_name == 'push'
+        run: |
+          REF="${{ github.ref_name }}"
+          PR="${REF##pull-request/}"
+          BASE=$(gh pr view "$PR" --json baseRefName --jq .baseRefName)
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "PR #$PR, base=$BASE"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Detect skills/ changes vs PR base
+        id: changes
+        if: github.event_name == 'push'
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
+        with:
+          base: ${{ steps.pr.outputs.base }}
+          filters: |
+            skills:
+              - 'skills/**'
+            harness:
+              - 'scripts/validate_skill_versions.py'
+              - '.github/skill-eval/**'
+              - '.github/workflows/skills-eval.yml'
+              - 'ci/run_skill_eval.sh'
+
+      - name: Authenticate Brev CLI (long-lived API key)
+        # Mints fresh Brev auth at the start of every run so the workflow
+        # does not depend on persistent ~/.brev/credentials.json state on
+        # the self-hosted runner. Fails loudly upfront if the secret is
+        # missing or wrong — instead of failing 4h later at cleanup.
+        if: github.event_name != 'push' || steps.changes.outputs.skills == 'true'
+        env:
+          BREV_API_KEY: ${{ secrets.BREV_API_KEY }}
+          BREV_ORG_ID: org-2wW9qP0o1LFbMHyE2UnAFPIil8H
+        run: |
+          if [ -z "$BREV_API_KEY" ]; then
+            echo "::error::BREV_API_KEY secret not set"
+            exit 1
+          fi
+          brev login --api-key "$BREV_API_KEY" --org-id "$BREV_ORG_ID"
+          if ! brev ls >/dev/null 2>&1; then
+            echo "::error::Brev auth failed: brev ls returned non-zero after login"
+            exit 1
+          fi
+          echo "Brev auth OK"
+
+      - name: Run skills eval agent
+        id: agent
+        if: github.event_name != 'push' || steps.changes.outputs.skills == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
+          INPUT_SKILLS: ${{ inputs.skills }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
+          ANTHROPIC_MODEL: aws/anthropic/bedrock-claude-sonnet-4-6
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          JUDGE_ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          JUDGE_FULL_MODEL: aws/anthropic/claude-haiku-4-5-v1
+          CLAUDE_CODE_DISABLE_THINKING: "1"
+          TAG: latest
+        run: |
+          mkdir -p "$GH_CONFIG_DIR" /tmp/brev /tmp/skill-eval
+          export PR_NUMBER="${{ steps.pr.outputs.number }}"
+          export PR_BASE="${{ steps.pr.outputs.base }}"
+          export PR_HEAD_SHA="${{ github.sha }}"
+          export PR_REPO="${{ github.repository }}"
+          export GITHUB_RUN_ID="${{ github.run_id }}"
+          # PYTHONPATH lets uvx harbor resolve envs.*:*Environment from skill-eval/
+          export PYTHONPATH="${GITHUB_WORKSPACE}/skill-eval:${PYTHONPATH:-}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "schedule" ]; then
+            # Schedule events never populate `inputs`, so INPUT_SKILLS is empty
+            # there — default to "*" so the agent enumerates all skills.
+            export MANUAL_FULL_SWEEP=1
+            export MANUAL_SKILLS_FILTER="${INPUT_SKILLS:-*}"
+          fi
+          python3 .github/skill-eval/skills_eval_agent.py
+
+      - name: Collect results for artifact
+        # Tar ONLY this run's subdir (/tmp/skill-eval/results/<run_id>/), not the whole
+        # results tree. The runner's disk persists between jobs, so /tmp/skill-eval/results/
+        # may also contain leftover subdirs from prior runs. Archiving all of them would
+        # re-upload stale data labeled as the current run — exactly how 06-03's results
+        # ended up in every nightly artifact for 9 days. If the agent didn't write a
+        # subdir for this run_id, there's nothing fresh to upload, so we exit cleanly.
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
+        run: |
+          RUN_DIR="/tmp/skill-eval/results/${{ github.run_id }}"
+          if [ ! -d "$RUN_DIR" ]; then
+            echo "no results subdir for this run (${{ github.run_id }}) — nothing to archive"
+            exit 0
+          fi
+          RESULTS=$(find "$RUN_DIR" -maxdepth 3 -name "result.json" 2>/dev/null | head -50 || true)
+          if [ -n "$RESULTS" ]; then
+            tar czf /tmp/skills-eval-results.tar.gz \
+              -C /tmp/skill-eval/results "${{ github.run_id }}"
+            echo "archived $(echo "$RESULTS" | wc -l) result.json files for run ${{ github.run_id }}"
+          else
+            echo "results dir exists for this run but no result.json files — nothing to archive"
+          fi
+
+      - name: Upload results artifact
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
+        uses: actions/upload-artifact@v5
+        with:
+          name: >-
+            ${{ github.event_name == 'schedule'
+              && format('skills-eval-nightly-{0}', github.run_id)
+              || github.event_name == 'workflow_dispatch'
+              && format('skills-eval-manual-{0}', github.run_id)
+              || format('skills-eval-pr-{0}-{1}', steps.pr.outputs.number, github.run_id) }}
+          path: /tmp/skills-eval-results.tar.gz
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Delete GPU Brev VMs
+        # Run on success AND failure — agent crashes are exactly when GPU
+        # cleanup is most needed. Process substitution (not pipe-to-while)
+        # so FAILED=1 inside the loop is visible after the loop exits.
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
+        run: |
+          RECORD="/tmp/brev/started-by-${{ github.run_id }}.txt"
+          if [ ! -f "$RECORD" ]; then
+            echo "No GPU VMs to clean up."
+            exit 0
+          fi
+          echo "Waiting 5 min cooldown before deleting VMs..."
+          sleep 300
+          FAILED=0
+          while read -r INSTANCE; do
+            [ -z "$INSTANCE" ] && continue
+            echo "Deleting Brev VM: $INSTANCE"
+            if brev delete "$INSTANCE"; then
+              echo "OK Deleted $INSTANCE"
+            else
+              echo "::error::Failed to delete $INSTANCE (exit $?)"
+              FAILED=1
+            fi
+          done < <(sort -u "$RECORD")
+          exit $FAILED
+
+      - name: Skip note when no skills/ changes
+        if: github.event_name == 'push' && steps.changes.outputs.skills != 'true'
+        run: echo "::notice::No skills/ changes in this PR; eval skipped."

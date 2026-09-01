@@ -18,6 +18,7 @@ import { useChatStore } from "../../store/useChatStore";
 import { useCollectionsStore } from "../../store/useCollectionsStore";
 import { CollectionChips } from "../collections/CollectionChips";
 import { MessageInputContainer } from "./MessageInputContainer";
+import { AgenticModeSelector } from "./AgenticModeSelector";
 import SimpleFilterBar from "../filtering/SimpleFilterBar";
 import { Flex, Banner, Block } from "@kui/react";
 
@@ -26,6 +27,7 @@ export { CollectionChips } from "../collections/CollectionChips";
 export { MessageTextarea } from "./MessageTextarea";
 export { MessageActions } from "./MessageActions";
 export { MessageInputContainer } from "./MessageInputContainer";
+export { AgenticModeSelector } from "./AgenticModeSelector";
 
 export default function MessageInput() {
   const { filters, setFilters } = useChatStore();
@@ -33,7 +35,14 @@ export default function MessageInput() {
 
   return (
     <Flex direction="col" padding="density-sm">
-      <CollectionChips />
+      <Flex
+        align="center"
+        gap="density-md"
+        style={{ flexWrap: "wrap" }}
+      >
+        <CollectionChips />
+        <AgenticModeSelector />
+      </Flex>
       
       <>
         {selectedCollections.length === 1 && (

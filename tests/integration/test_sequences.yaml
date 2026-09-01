@@ -2,7 +2,7 @@ sequences:
   basic:
     name: "Basic Integration Tests"
     description: "Core functionality tests excluding advanced features"
-    test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 36, 37, 38, 39, 40, 50, 51, 66, 71, 72, 73, 74, 75, 76, 77, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108, 99, 110, 111, 112, 113, 114]
+    test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 115, 13, 14, 15, 33, 34, 35, 36, 37, 38, 39, 40, 50, 51, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108, 99, 110, 111, 112, 113, 114]
     pre_sequence: [18]  # Cleanup collection before basic tests
     post_sequence: [16, 17, 18, 19, 109]  # Cleanup tests after sequence
 
@@ -34,12 +34,12 @@ sequences:
     pre_sequence: [18]  # Cleanup collection before custom prompt tests
     post_sequence: [18]  # Cleanup tests after sequence
 
-  elastic_search:
-    name: "Elastic Search Tests"
-    description: "Basic tests with Elastic Search"
+  milvus:
+    name: "Milvus Vector Database Tests"
+    description: "Core integration subset with Milvus as the vector store"
     test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14]
-    pre_sequence: [18]  # Cleanup collection before basic tests
-    #post_sequence: [16, 17, 18, 19]  # Cleanup tests after sequence
+    pre_sequence: [18]  # Cleanup collection before tests
+    post_sequence: [16, 17, 18, 19]  # Cleanup tests after sequence
 
   file_type_check:
     name: "File Type Check Tests"
@@ -73,9 +73,9 @@ sequences:
   multimodal_query:
     name: "Multimodal Query Tests"
     description: "Multimodal RAG tests with image+text queries. Verifies retrieval and generation using VLM embedding and VLM model. Requires product_catalog.pdf and Creme_clutch_purse1-small.jpg."
-    test_numbers: [150, 151, 152, 153, 154, 155]
-    pre_sequence: []
-    post_sequence: []
+    test_numbers: [150, 151, 152, 153, 154]
+    pre_sequence: [155]  # Delete any leftover collection from a previous run
+    post_sequence: [155]  # Always clean up, even if a test fails
 
   query_rewriter:
     name: "Query Rewriter Tests"
@@ -90,6 +90,20 @@ sequences:
     test_numbers: [78, 79, 80, 81, 82, 83, 84]
     pre_sequence: []
     post_sequence: [85]  # Cleanup tests after sequence
+
+  nemo_retriever_library:
+    name: "Nemo Retriever Library Tests"
+    description: "Nemo Retriever Library functionality tests"
+    test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 39, 40, 50, 51]
+    pre_sequence: [18]  # Cleanup collection before tests
+    post_sequence: [16, 17, 18, 19]  # Cleanup tests after sequence
+
+  nemo_retriever_library_vlm_generation:
+    name: "NeMo Retriever Library VLM Generation Tests"
+    description: "VLM generation with INGESTOR_BACKEND=nrl and LanceDB (same cases as vlm_generation)"
+    test_numbers: [61, 62, 63, 64]
+    pre_sequence: [65]  # Cleanup collection before VLM generation tests
+    post_sequence: [65]  # Cleanup tests after sequence
 
   library_usage:
     name: "Python Library Usage Tests"
