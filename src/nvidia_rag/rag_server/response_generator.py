@@ -30,6 +30,7 @@ import base64
 import json
 import logging
 import os
+import re
 import time
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, Literal, Optional, Union
@@ -479,6 +480,62 @@ def _extract_stream_delta(chunk: Any) -> tuple[str, str]:
     return str(content) if content else "", str(reasoning) if reasoning else ""
 
 
+# Compiled once at import time: keep word chars, whitespace, and the ASCII
+# apostrophe; replace every other character (period, comma, em-dash, etc.)
+# with a single space prior to whitespace collapsing.
+_GUARDRAILS_REFUSAL_PUNCT_STRIP_RE = re.compile(r"[^\w\s']", flags=re.UNICODE)
+
+# Allow-list of normalized NeMo Guardrails refusal sentences. Each entry is
+# the result of lowercasing the source phrasing, replacing every non-word
+# non-apostrophe character with a space, and collapsing runs of whitespace
+# (i.e. the same transformation `_is_guardrails_refusal` applies to its
+# input). The 4 entries cover the cartesian product of "I'm"/"I am" with
+# "can't"/"cannot", which captures the benign drift observed from the
+# guardrails container without admitting unrelated apologetic phrasings.
+_GUARDRAILS_REFUSAL_NORMALIZED: frozenset[str] = frozenset(
+    {
+        "i'm sorry i can't respond to that",
+        "i'm sorry i cannot respond to that",
+        "i am sorry i can't respond to that",
+        "i am sorry i cannot respond to that",
+    }
+)
+
+
+def _is_guardrails_refusal(content_delta: str) -> bool:
+    """Detect the NeMo Guardrails refusal sentence in a streamed content chunk.
+
+    The previous implementation compared ``content_delta`` for strict equality
+    against the canonical refusal text. Benign drift emitted by the guardrails
+    container (e.g. ``can't`` vs ``cannot``, ``I'm`` vs ``I am``, casing or
+    trailing-whitespace differences, period vs comma) caused the equality to
+    miss, leaving retrieved contexts attached to a refused response and
+    producing stale citations on the wire.
+
+    This helper normalizes ``content_delta`` by lowercasing, replacing every
+    punctuation character except the ASCII apostrophe with a single space,
+    and collapsing whitespace. The normalized form is then checked for
+    membership in a tightly bounded allow-list (see
+    ``_GUARDRAILS_REFUSAL_NORMALIZED``) so that drifted refusals are caught
+    while unrelated apologetic responses containing the word "sorry" are not
+    false-positively flagged as refusals.
+
+    Args:
+        content_delta: The latest streamed content chunk from the LLM /
+            guardrails pipeline.
+
+    Returns:
+        ``True`` iff the normalized form of ``content_delta`` is one of the
+        recognized refusal phrasings; ``False`` otherwise (including for
+        empty strings and non-string inputs).
+    """
+    if not isinstance(content_delta, str) or not content_delta:
+        return False
+    stripped = _GUARDRAILS_REFUSAL_PUNCT_STRIP_RE.sub(" ", content_delta).lower()
+    normalized = " ".join(stripped.split())
+    return normalized in _GUARDRAILS_REFUSAL_NORMALIZED
+
+
 def generate_answer(
     generator: "Generator[str]",
     contexts: list[Any],
@@ -737,10 +794,12 @@ async def generate_answer_async(
                 # Accumulate answer chunks for final logging
                 accumulated_response += content_delta
 
-                # TODO: This is a hack to clear contexts if we get an error
-                # response from nemoguardrails
-                if content_delta == "I'm sorry, I can't respond to that.":
-                    # Clear contexts if we get an error response
+                # Clear retrieved contexts if NeMo Guardrails refused this
+                # response, so downstream citations do not leak stale results
+                # alongside a refusal message. The match tolerates benign
+                # drift in the guardrails refusal phrasing — see
+                # `_is_guardrails_refusal` for the normalization contract.
+                if _is_guardrails_refusal(content_delta):
                     contexts = []
                 chain_response = ChainResponse()
                 response_choice = ChainResponseChoices(

@@ -38,6 +38,7 @@ from nvidia_rag.rag_server.response_generator import (
     TextContent,
     Usage,
     _is_empty_content,
+    _is_guardrails_refusal,
     configure_object_store_operator,
     error_response_generator,
     error_response_generator_async,
@@ -802,6 +803,87 @@ class TestRetrieveSummary:
             assert "error" in result
 
 
+class TestIsGuardrailsRefusal:
+    """Tests for the `_is_guardrails_refusal` helper.
+
+    The helper gates the context-clearing branch in
+    ``generate_answer_async`` (and, eventually, ``generate_answer``).
+    The branch must fire for benign output drift in the NeMo Guardrails
+    refusal sentence — punctuation, casing, ``I'm``/``I am``,
+    ``can't``/``cannot``, trailing whitespace — and must NOT fire for
+    unrelated apologetic phrasings or empty inputs.
+    """
+
+    @pytest.mark.parametrize(
+        "content_delta",
+        [
+            # Canonical guardrails refusal (unchanged from the original
+            # hardcoded string).
+            "I'm sorry, I can't respond to that.",
+            # Cartesian product of "I'm"/"I am" with "can't"/"cannot".
+            "I am sorry, I cannot respond to that.",
+            "I'm sorry, I cannot respond to that.",
+            "I am sorry, I can't respond to that.",
+            # Casing variants.
+            "i'm sorry, i can't respond to that.",
+            "I'M SORRY, I CAN'T RESPOND TO THAT.",
+            "I Am Sorry, I Cannot Respond To That.",
+            # Punctuation drift: missing trailing period.
+            "I'm sorry, I can't respond to that",
+            # Punctuation drift: extra/different separators.
+            "I'm sorry. I can't respond to that.",
+            "I'm sorry — I can't respond to that.",
+            "I'm sorry; I can't respond to that.",
+            # Trailing / leading / interior whitespace drift.
+            "  I'm sorry, I can't respond to that.  ",
+            "I'm sorry,  I can't  respond  to that.",
+            "I'm sorry,\tI can't respond to that.",
+            "I'm sorry,\nI can't respond to that.",
+        ],
+    )
+    def test_recognises_canonical_and_drifted_refusals(
+        self, content_delta: str
+    ) -> None:
+        """All canonical + benign-drift refusals normalize to an allowed form."""
+        assert _is_guardrails_refusal(content_delta) is True
+
+    @pytest.mark.parametrize(
+        "content_delta",
+        [
+            # Empty / falsy inputs.
+            "",
+            # Unrelated apologetic phrasing.
+            "I'm sorry, can't help.",
+            "Sorry, I can't do that.",
+            "I'm sorry to hear that.",
+            "I am sorry to hear that you cannot respond to that.",
+            # Just the word "sorry" — must not be treated as a refusal.
+            "sorry",
+            "Sorry.",
+            # Genuine RAG-style answer that happens to contain "sorry".
+            "I'm sorry, but the document does not mention that topic.",
+            "I am sorry; based on the provided context, the answer is 42.",
+            # Refusal-adjacent phrasings that are NOT the guardrails sentence.
+            "I cannot respond to that.",
+            "I can't respond to that question.",
+            "I refuse to respond to that.",
+            # Token-level streaming fragments (early/partial chunks).
+            "I'm",
+            "I'm sorry",
+            "I'm sorry,",
+            "respond to that.",
+        ],
+    )
+    def test_does_not_false_positive(self, content_delta: str) -> None:
+        """Unrelated content (including partial chunks) must not trigger."""
+        assert _is_guardrails_refusal(content_delta) is False
+
+    @pytest.mark.parametrize("content_delta", [None, 123, b"bytes", object()])
+    def test_non_string_input_returns_false(self, content_delta: Any) -> None:
+        """Non-string / unexpected inputs must return False, not raise."""
+        assert _is_guardrails_refusal(content_delta) is False  # type: ignore[arg-type]
+
+
 class TestGenerateAnswerAsync:
     """Test generate_answer_async function"""
 
@@ -856,10 +938,7 @@ class TestGenerateAnswerAsync:
             item for item in result if item["choices"][0].get("finish_reason") is None
         ]
         assert token_chunks[0]["choices"][0]["delta"]["content"] == ""
-        assert (
-            token_chunks[0]["choices"][0]["delta"]["reasoning_content"]
-            == "thinking"
-        )
+        assert token_chunks[0]["choices"][0]["delta"]["reasoning_content"] == "thinking"
         assert token_chunks[1]["choices"][0]["delta"]["content"] == "answer"
         assert token_chunks[1]["choices"][0]["delta"]["reasoning_content"] is None
 
@@ -882,9 +961,27 @@ class TestGenerateAnswerAsync:
         assert len(result) == 1
         assert result[0].startswith("data: ")
 
+    @staticmethod
+    def _first_chunk_citations(chunks: list[str]) -> dict[str, Any]:
+        """Parse the first SSE chunk from ``generate_answer_async`` and return
+        its ``citations`` block (the only chunk in which citations are populated
+        by the citations builder — first_chunk gate at the source)."""
+        assert chunks, "expected at least one streamed chunk"
+        first = chunks[0]
+        assert first.startswith("data: "), first
+        payload = json.loads(first.removeprefix("data: "))
+        return payload["citations"]
+
     @pytest.mark.asyncio
     async def test_generate_answer_async_error_response_chunk(self):
-        """Test generate_answer_async with error response chunk"""
+        """Canonical refusal: contexts must be cleared before citations are built.
+
+        The first streamed chunk MUST carry an empty ``citations`` block — i.e.
+        ``total_results == 0`` and ``results == []`` — even though we passed in
+        a non-empty ``contexts`` list. This is the deterministic signal that
+        ``contexts = []`` ran prior to the ``_citations_fn(...)`` call gated by
+        ``first_chunk``.
+        """
 
         async def mock_generator():
             yield "I'm sorry, I can't respond to that."
@@ -899,10 +996,96 @@ class TestGenerateAnswerAsync:
             generator=mock_generator(),
             contexts=contexts,
             model="test-model",
+            enable_citations=True,
         ):
             result.append(chunk)
 
-        assert len(result) > 0
+        citations = self._first_chunk_citations(result)
+        assert citations["total_results"] == 0
+        assert citations["results"] == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "refusal_text",
+        [
+            # Bug 6301657 reproducer: lowercased "I am" + "cannot" form.
+            "I am sorry, I cannot respond to that.",
+            # Mixed drift forms.
+            "I'm sorry, I cannot respond to that.",
+            "I am sorry, I can't respond to that.",
+            # Casing + trailing whitespace.
+            "I'M SORRY, I CAN'T RESPOND TO THAT.   ",
+            # Missing trailing period.
+            "I'm sorry, I can't respond to that",
+        ],
+    )
+    async def test_generate_answer_async_clears_contexts_on_drifted_refusal(
+        self, refusal_text: str
+    ):
+        """Drifted refusal phrasings must also clear contexts (regression: NVBug 6301657).
+
+        Prior to the fix the strict equality check missed any benign drift in
+        the guardrails refusal sentence (e.g. ``I am`` vs ``I'm``, ``cannot``
+        vs ``can't``, trailing whitespace, casing). The contexts then stayed
+        populated and citations leaked stale documents alongside a refusal
+        response. This test asserts the first chunk's citations are empty for
+        every drift form covered by ``_GUARDRAILS_REFUSAL_NORMALIZED``.
+        """
+
+        async def mock_generator():
+            yield refusal_text
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+            enable_citations=True,
+        ):
+            result.append(chunk)
+
+        citations = self._first_chunk_citations(result)
+        assert citations["total_results"] == 0, (
+            f"contexts were not cleared for drifted refusal: {refusal_text!r}"
+        )
+        assert citations["results"] == []
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_keeps_contexts_for_non_refusal(self):
+        """Non-refusal responses must NOT have their contexts cleared.
+
+        Guards against an over-broad ``_is_guardrails_refusal`` matcher: an
+        ordinary RAG answer that happens to begin with a phrase like
+        ``"I'm sorry,"`` must still carry citations through to the client.
+        """
+
+        async def mock_generator():
+            yield "I'm sorry, but the document does not mention that."
+            yield " The provided context covers other topics."
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+            enable_citations=True,
+        ):
+            result.append(chunk)
+
+        citations = self._first_chunk_citations(result)
+        assert citations["total_results"] >= 1, (
+            "contexts should NOT have been cleared for a non-refusal apology"
+        )
 
     @pytest.mark.asyncio
     async def test_generate_answer_async_with_rag_start_time(self):
