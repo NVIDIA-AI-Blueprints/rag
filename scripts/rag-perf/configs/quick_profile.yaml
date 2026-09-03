@@ -1,0 +1,51 @@
+# rag-perf — Quick profile preset
+# ---------------------------------
+# Lightweight profiling-only run (no aiperf load test). Use this for fast
+# iteration on retrieval / reranker tuning: it captures server-side stage
+# timing (retrieval, reranking, LLM TTFT), citation counts, and the inferred
+# bottleneck — without driving production-style load.
+#
+# Typical runtime: ~30 seconds.
+#
+#   uv run --project scripts/rag-perf rag-perf -c scripts/rag-perf/configs/quick_profile.yaml
+
+target:
+  url: "http://localhost:8081"
+  timeout_s: 300
+
+aiperf:
+  enabled: false           # ← profile-only: skip the aiperf load test
+
+load:
+  # When aiperf.enabled=false, only profile_requests is meaningful.
+  # warmup_requests and total_requests are unused but must satisfy validators.
+  concurrency: 1           # one in-flight request → clean per-stage timing
+  warmup_requests: 1
+  total_requests: 1
+  profile_requests: 10     # this is what actually runs
+
+rag:
+  # Replace <collection_name> with the name of a collection that exists on
+  # the deployed ingestor server (see GET /v1/collections).
+  collection_names: ["<collection_name>"]
+  vdb_top_k: 20
+  reranker_top_k: 4
+  enable_reranker: true
+  enable_citations: true
+  use_knowledge_base: true
+
+generation:
+  max_tokens: 256
+  temperature: 0.0
+
+input:
+  # Set exactly one of `file` or `synthetic` (mutually exclusive).
+  # `file` accepts .jsonl or .csv (format auto-detected from extension).
+  file: "scripts/rag-perf/examples/queries.jsonl"
+  sampling: random
+  seed: 42
+
+output:
+  dir: "./rag-perf-results/quick_profile"
+  formats: [json]
+  markdown_report: true

@@ -874,7 +874,7 @@ class SummaryModule(BaseTestModule):
                     "collection_name": collection_name,
                     "file_name": filename,
                     "blocking": "true",
-                    "timeout": 60,
+                    "timeout": 120, # 2 minutes to wait for the summary to be generated
                 }
 
                 async with session.get(

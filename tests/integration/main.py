@@ -40,6 +40,7 @@ from .base import TestResult, TestStatus
 from .utils.discovery import discover_test_modules, discover_test_cases
 from .utils.sequence_executor import TestSequenceExecutor
 from .utils.response_handlers import print_response
+from .utils.vector_store import is_elasticsearch_vector_store
 
 # Configure logging
 logging.basicConfig(
@@ -130,10 +131,26 @@ class IntegrationTestRunner:
             'content_metadata["meta_field_1"] == "updated multimodal document"'
         )
 
+        # Elasticsearch: list[dict] Query DSL clauses (see validate_filter_expr / process_filter_expr)
+        self.metadata_filter_expr_elasticsearch = [
+            {
+                "term": {
+                    "metadata.content_metadata.meta_field_1.keyword": (
+                        "updated multimodal document"
+                    ),
+                },
+            },
+        ]
+
         self.task_ids = {}
         self.test_results: list[TestResult] = []
 
-
+    @property
+    def metadata_filter_expr_for_backend(self) -> str | list[dict[str, Any]]:
+        """Milvus string or Elasticsearch Query DSL list per APP_VECTORSTORE_NAME."""
+        if is_elasticsearch_vector_store():
+            return self.metadata_filter_expr_elasticsearch
+        return self.metadata_filter_expr
 
     def add_test_result(
         self,

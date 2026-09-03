@@ -1,0 +1,13 @@
+# copy-pr-bot configuration for NVIDIA-AI-Blueprints/rag
+# Docs: https://docs.gha-runners.nvidia.com/platform/apps/copy-pr-bot/
+#
+# additional_trustees: users explicitly trusted even if not org members.
+# Needed when author_association is CONTRIBUTOR (not MEMBER of NVIDIA-AI-Blueprints org).
+
+enabled: true
+auto_sync_draft: false
+auto_sync_ready: true
+
+additional_trustees:
+  - vidushig-nv
+  - richa-nvidia

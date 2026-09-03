@@ -1,0 +1,89 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nvidia-rag-perf"
+version = "0.1.0"
+description = "Performance benchmarking CLI for the NVIDIA RAG Blueprint — aiperf-powered, RAG-aware"
+# User-facing docs live at <repo-root>/docs/performance-benchmarking.md
+# (no README.md inside scripts/rag-perf/).
+license = { text = "Apache-2.0" }
+authors = [{ name = "NVIDIA Inc.", email = "sw-dl-dynamo@nvidia.com" }]
+requires-python = ">=3.11,<3.14"
+
+dependencies = [
+    # Load engine — aiperf drives concurrent request generation, TTFT/ITL
+    # measurement, and SSE streaming. The nvidia_rag endpoint plugin
+    # (rag_perf/plugin/) hooks into aiperf via its entry-point system.
+    # Source: https://github.com/NVIDIA/aiperf  (Apache-2.0, on PyPI)
+    "aiperf>=0.7.0",
+
+    # Configuration models — Pydantic v2 provides typed, validated configs
+    # with clear error messages for missing/invalid fields.
+    "pydantic>=2.10,<3.0",
+
+    # CLI framework — Click powers the rag-perf run|sweep|profile subcommands.
+    "click>=8.1,<9.0",
+
+    # Rich terminal output — live tables, progress bars, banner, Markdown.
+    "rich>=13.0,<15.0",
+
+    # YAML config parsing — ruamel.yaml loads config YAMLs (preserving
+    # comments) and serialises RunConfig back to YAML for reports. Also used
+    # to load the prompts YAML template file.
+    "ruamel.yaml>=0.18,<0.19",
+
+    # Async HTTP client — httpx (async) drives the direct profiling pass:
+    # it sends requests to the RAG server and parses SSE chunks to extract
+    # server-side stage timing and citation metadata that aiperf cannot
+    # access. Also used (sync) for synthetic query generation and model
+    # auto-discovery via /v1/models.
+    "httpx[http2]>=0.27,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+# Primary CLI: `rag-perf -c <config>`. Behaviour is fully config-driven.
+rag-perf = "rag_perf.cli:main"
+
+[project.entry-points."aiperf.plugins"]
+# Register the nvidia_rag endpoint plugin with aiperf's plugin discovery system.
+# After `pip install -e .`, aiperf can resolve: --endpoint-type nvidia_rag.
+nvidia_rag = "rag_perf.plugin:plugins.yaml"
+
+[tool.hatch.build.targets.wheel]
+packages = ["rag_perf"]
+# Bundle the default prompts YAML alongside the Python package.
+artifacts = ["prompts/"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+
+# Unit tests live at <repo>/tests/unit/test_rag_perf/ alongside the rest of the
+# rag repo's test suite — see ``tests/unit/test_rag_perf/conftest.py`` for the
+# sys.path bridge that makes ``rag_perf`` importable from there.

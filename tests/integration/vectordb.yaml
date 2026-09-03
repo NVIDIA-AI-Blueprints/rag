@@ -6,16 +6,16 @@ services:
     image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.5-gpu} # milvusdb/milvus:v2.6.5 for CPU
     command: >
       bash -lc 'tmpfile=$(mktemp) &&
-      sed "s/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
+      sed -e "s/bucketName: a-bucket/bucketName: ${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}/" -e "s/accessKeyID: minioadmin/accessKeyID: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}/" -e "s/secretAccessKey: minioadmin/secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
       cat "$$tmpfile" > /milvus/configs/milvus.yaml &&
       rm "$$tmpfile" &&
       milvus run standalone'
     environment:
       ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9010
+      MINIO_ADDRESS: seaweedfs:9010
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
+      - rag-vol-milvus:/var/lib/milvus
       # - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
@@ -28,7 +28,7 @@ services:
       - "9091:9091"
     depends_on:
       - "etcd"
-      - "minio"
+      - "seaweedfs"
     # Comment out this section if CPU based image is used and set below env variables to False
     # export APP_VECTORSTORE_ENABLEGPUSEARCH=False
     # export APP_VECTORSTORE_ENABLEGPUINDEX=False
@@ -40,7 +40,7 @@ services:
     #           capabilities: ["gpu"]
     #           # count: ${INFERENCE_GPU_COUNT:-all}
     #           device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
-    profiles: ["", "milvus"]
+    profiles: ["milvus"]
 
   etcd:
     container_name: milvus-etcd
@@ -51,42 +51,48 @@ services:
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/etcd:/etcd
+      - rag-vol-etcd:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["", "milvus"]
+    profiles: ["milvus"]
 
-  minio:
-    container_name: milvus-minio
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  seaweedfs:
+    container_name: seaweedfs
+    image: chrislusf/seaweedfs:3.73
     environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ACCESS_KEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      MINIO_SECRET_KEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
     ports:
       - "9011:9011"
       - "9010:9010"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
-    command: minio server /minio_data --console-address ":9011" --address ":9010"
+      - rag-vol-seaweedfs:/data
+      - ../../deploy/compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.port=9010
+      - -s3.config=/etc/seaweedfs/s3.json
+      - -master.volumeSizeLimitMB=1024
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9010/minio/health/live"]
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9010"]
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["", "milvus", "elasticsearch", "minio"]
+    profiles: ["", "milvus", "elasticsearch", "seaweedfs"]
 
   elasticsearch:
     container_name: elasticsearch
-    image: "docker.elastic.co/elasticsearch/elasticsearch:9.0.3"
+    image: "docker.elastic.co/elasticsearch/elasticsearch:9.3.0"
     ports:
       - 9200:9200
     volumes:
-      # Run "sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/" to fix permissions
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
+      - rag-vol-elasticsearch:/usr/share/elasticsearch/data
     restart: on-failure
     environment:
       - discovery.type=single-node
@@ -104,7 +110,18 @@ services:
       interval: 10s
       timeout: 1s
       retries: 10
-    profiles: ["elasticsearch"]
+    profiles: ["", "elasticsearch"]
+
+# Per-service named Docker volumes — mirror the production layout in deploy/compose/vectordb.yaml.
+volumes:
+  rag-vol-milvus:
+    name: rag-vol-milvus
+  rag-vol-etcd:
+    name: rag-vol-etcd
+  rag-vol-seaweedfs:
+    name: rag-vol-seaweedfs
+  rag-vol-elasticsearch:
+    name: rag-vol-elasticsearch
 
 networks:
   default:

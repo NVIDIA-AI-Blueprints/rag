@@ -284,7 +284,8 @@ You should see "Good signature" in the output.
 - Configure pinentry for your environment (GUI vs terminal)
 
 
-## Developer Certificate of Origin
+## Full text of the DCO
+
 Version 1.1
 
 Copyright (C) 2004, 2006 The Linux Foundation and its contributors.

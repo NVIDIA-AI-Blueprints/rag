@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_URL=nvcr.io/nvidia/base/ubuntu
-ARG BASE_IMAGE_TAG=jammy-20251013
+ARG BASE_IMAGE_TAG=jammy-20260217
 ARG DOWNLOAD_LEGAL_COMPLIANCE=false
 
 # -------- Stage 1: Build Stage --------
@@ -69,7 +69,7 @@ WORKDIR /workspace
 COPY --from=builder /build/pyproject.toml /workspace/
 COPY --from=builder /build/uv.lock /workspace/
 
-RUN uv sync --locked --no-install-project --no-dev --extra rag --extra elasticsearch --extra oracle
+RUN uv sync --locked --no-install-project --no-dev --extra rag --extra elasticsearch
 
 COPY --from=builder /build/dist/*.whl /workspace/
 

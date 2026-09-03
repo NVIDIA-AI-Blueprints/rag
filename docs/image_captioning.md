@@ -27,14 +27,14 @@ For this feature, use H100 or A100 GPUs instead.
 
 2. Make sure the vlm container is up and running
    ```bash
-   docker ps --filter "name=nemo-vlm-microservice" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
+   docker ps --filter "name=nemotron-3-nano-omni-30b-a3b-reasoning" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
    ```
 
    *Example Output*
 
    ```output
-   NAMES                                   STATUS
-   nemo-vlm-microservice                   Up 5 minutes (healthy)
+   NAMES                                                STATUS
+   nemotron-3-nano-omni-30b-a3b-reasoning               Up 5 minutes (healthy)
    ```
 
 3. Enable image captioning
@@ -49,7 +49,7 @@ For this feature, use H100 or A100 GPUs instead.
 1. Set caption endpoint and model to API catalog
    ```bash
    export APP_NVINGEST_CAPTIONENDPOINTURL="https://integrate.api.nvidia.com/v1/chat/completions"
-   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
    ```
 
 2. Enable image captioning
@@ -72,12 +72,13 @@ export APP_NVINGEST_CAPTIONMODELNAME="<model_name>"
 
 To enable image captioning in Helm-based deployments by using an on-prem VLM model, use the following procedure.
 
-1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable image captioning:
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable image captioning. The captioning model is served by a dedicated `nim-vlm-captioning` NIM (`nvidia/nemotron-nano-12b-v2-vl`), which is independent of the `nim-vlm` generation NIM:
 
    ```yaml
-   # Enable VLM NIM for image captioning
-   nim-vlm:
-     enabled: true
+   # Enable the dedicated VLM captioning NIM for image captioning at ingestion
+   nimOperator:
+     nim-vlm-captioning:
+       enabled: true
 
    # Configure ingestor-server for image captioning
    ingestor-server:
@@ -86,7 +87,7 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
        
        # === Image Captioning ===
        APP_NVINGEST_EXTRACTIMAGES: "True"
-       APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm:8000/v1/chat/completions"
+       APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm-captioning:8000/v1/chat/completions"
        APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
    ```
 

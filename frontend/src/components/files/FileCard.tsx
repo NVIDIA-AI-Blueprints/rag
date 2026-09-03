@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
 import { useCallback, useState } from "react";
 import { useNewCollectionStore } from "../../store/useNewCollectionStore";
 import { MetadataField } from "./MetadataField";

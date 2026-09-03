@@ -32,6 +32,7 @@ from nvidia_rag.utils.llm import (
     get_prompts,
     get_streaming_filter_think_parser,
     streaming_filter_think,
+    streaming_split_reasoning_async,
 )
 
 
@@ -241,10 +242,7 @@ class TestGetLLM:
                 model="test-model",
                 api_key="test-api-key",
                 default_headers={"source": "rag-blueprint"},
-                temperature=0.7,
-                top_p=0.9,
                 max_completion_tokens=1024,
-                model_kwargs={"min_tokens": 1024, "ignore_eos": True},
             )
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
@@ -268,8 +266,6 @@ class TestGetLLM:
             mock_chatnvidia.assert_called_once_with(
                 model="test-model",
                 api_key="test-api-key",
-                temperature=None,
-                top_p=None,
                 max_completion_tokens=None,
                 default_headers={"source": "rag-blueprint"},
             )
@@ -320,8 +316,6 @@ class TestGetLLM:
                     openai_api_base="http://guardrails-service:8080/v1/guardrail",
                     openai_api_key="dummy-value",
                     default_headers={"source": "rag-blueprint", "X-Model-Authorization": "test-api-key"},
-                    temperature=0.7,
-                    top_p=None,
                     max_tokens=None,
                 )
 
@@ -409,15 +403,11 @@ class TestGetLLM:
             with patch("nvidia_rag.utils.llm.ChatNVIDIA") as mock_chatnvidia:
                 get_llm(**kwargs)
 
-                # When min_tokens is None and ignore_eos is False, model_kwargs is still added with ignore_eos
                 mock_chatnvidia.assert_called_once_with(
                     model="test-model",
                     api_key="test-api-key",
-                    temperature=None,
-                    top_p=None,
                     max_completion_tokens=None,
                     default_headers={"source": "rag-blueprint"},
-                    model_kwargs={"ignore_eos": False},
                 )
 
 
@@ -645,6 +635,84 @@ class TestGetStreamingFilterThinkParser:
         mock_runnable_passthrough.assert_called_once()
 
 
+class TestStreamingSplitReasoningAsync:
+    """Test cases for preserving reasoning in structured chunks."""
+
+    def create_mock_chunk(self, content="", reasoning_content=None, reasoning=None):
+        """Create a mock chunk with content and optional reasoning metadata."""
+        chunk = Mock()
+        chunk.content = content
+        chunk.additional_kwargs = {}
+        if reasoning_content is not None:
+            chunk.additional_kwargs["reasoning_content"] = reasoning_content
+        if reasoning is not None:
+            chunk.additional_kwargs["reasoning"] = reasoning
+        return chunk
+
+    async def _collect(self, chunks):
+        async def gen():
+            for chunk in chunks:
+                yield chunk
+
+        result = []
+        async for chunk in streaming_split_reasoning_async(gen()):
+            result.append(
+                (
+                    chunk.content,
+                    chunk.additional_kwargs.get("reasoning_content"),
+                )
+            )
+        return result
+
+    @pytest.mark.asyncio
+    async def test_reasoning_content_field_is_preserved(self):
+        chunks = [
+            self.create_mock_chunk(reasoning_content="think "),
+            self.create_mock_chunk(content="answer"),
+        ]
+
+        result = await self._collect(chunks)
+
+        assert result == [("", "think "), ("answer", None)]
+
+    @pytest.mark.asyncio
+    async def test_inline_think_block_is_moved_to_reasoning_content(self):
+        chunks = [
+            self.create_mock_chunk("Before <think>hidden</think> after"),
+        ]
+
+        result = await self._collect(chunks)
+
+        assert result == [("Before ", None), ("", "hidden"), (" after", None)]
+
+    @pytest.mark.asyncio
+    async def test_split_think_tags_are_moved_to_reasoning_content(self):
+        chunks = [
+            self.create_mock_chunk("A "),
+            self.create_mock_chunk("<th"),
+            self.create_mock_chunk("ink"),
+            self.create_mock_chunk(">why"),
+            self.create_mock_chunk("</"),
+            self.create_mock_chunk("think"),
+            self.create_mock_chunk("> B"),
+        ]
+
+        result = await self._collect(chunks)
+
+        assert result == [("A ", None), ("", "why"), (" B", None)]
+
+    @pytest.mark.asyncio
+    async def test_plain_content_stays_in_content(self):
+        chunks = [
+            self.create_mock_chunk("Hello "),
+            self.create_mock_chunk("world"),
+        ]
+
+        result = await self._collect(chunks)
+
+        assert result == [("Hello ", None), ("world", None)]
+
+
 class TestLLMIntegration:
     """Integration tests for LLM utilities."""
 
@@ -681,10 +749,7 @@ class TestLLMIntegration:
                     model="meta/llama-3.1-8b-instruct",
                     api_key="test-api-key",
                     default_headers={"source": "rag-blueprint"},
-                    temperature=0.7,
-                    top_p=0.9,
                     max_completion_tokens=2048,
-                    model_kwargs={"min_tokens": 2048, "ignore_eos": True},
                 )
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
@@ -719,8 +784,8 @@ class TestLLMIntegration:
 
             # Verify NVIDIA-specific parameters are NOT included
             call_kwargs = mock_chatnvidia.call_args[1]
-            assert call_kwargs["temperature"] == 0.7
-            assert call_kwargs["top_p"] == 0.9
+            assert "temperature" not in call_kwargs
+            assert "top_p" not in call_kwargs
             assert call_kwargs["max_completion_tokens"] == 1024
             assert "min_tokens" not in call_kwargs
             assert "ignore_eos" not in call_kwargs
@@ -741,13 +806,19 @@ class TestLLMIntegration:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
             mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.llm.parameters.enable_thinking = False
+            mock_config.llm.parameters.reasoning_budget = 0
+            mock_config.llm.parameters.low_effort = False
+            mock_config.llm.parameters.min_thinking_tokens = 0
+            mock_config.llm.parameters.max_thinking_tokens = 0
             mock_config.enable_guardrails = False
             mock_config_class.return_value = mock_config
 
             kwargs = {
-                "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                "model": "nvidia/nemotron-3-super-120b-a12b",
                 "llm_endpoint": "http://localhost:8000",
                 "temperature": 0.7,
+                "top_p": 0.9,
                 "min_tokens": 100,
                 "ignore_eos": True,
             }
@@ -756,9 +827,41 @@ class TestLLMIntegration:
 
             call_kwargs = mock_chatnvidia.call_args[1]
             assert call_kwargs["temperature"] == 0.7
+            assert call_kwargs["top_p"] == 0.9
             # NVIDIA-specific params are now passed via model_kwargs
             assert call_kwargs["model_kwargs"]["min_tokens"] == 100
             assert call_kwargs["model_kwargs"]["ignore_eos"] is True
+
+    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
+    @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_llm_nvidia_endpoint_non_nvidia_model_excludes_nvidia_params(
+        self, mock_chatnvidia, mock_sanitize
+    ):
+        """Test NVIDIA endpoints do not send NIM params for non-NVIDIA model names."""
+        mock_sanitize.return_value = "https://integrate.api.nvidia.com/v1"
+
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
+
+            get_llm(
+                model="meta/llama-3.1-8b-instruct",
+                llm_endpoint="https://integrate.api.nvidia.com/v1",
+                temperature=0.7,
+                top_p=0.9,
+                min_tokens=100,
+                ignore_eos=True,
+            )
+
+            call_kwargs = mock_chatnvidia.call_args[1]
+            assert call_kwargs["base_url"] == "https://integrate.api.nvidia.com/v1"
+            assert "temperature" not in call_kwargs
+            assert "top_p" not in call_kwargs
+            assert "model_kwargs" not in call_kwargs
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
@@ -771,12 +874,19 @@ class TestLLMIntegration:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
             mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.llm.parameters.enable_thinking = False
+            mock_config.llm.parameters.reasoning_budget = 0
+            mock_config.llm.parameters.low_effort = False
+            mock_config.llm.parameters.min_thinking_tokens = 0
+            mock_config.llm.parameters.max_thinking_tokens = 0
             mock_config.enable_guardrails = False
             mock_config_class.return_value = mock_config
 
             kwargs = {
-                "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                "model": "nvidia/nemotron-3-super-120b-a12b",
                 "llm_endpoint": "",
+                "temperature": 0.7,
+                "top_p": 0.9,
                 "min_tokens": 100,
             }
 
@@ -784,6 +894,8 @@ class TestLLMIntegration:
 
             # Empty URL should default to NVIDIA (API catalog), so min_tokens should be in model_kwargs
             call_kwargs = mock_chatnvidia.call_args[1]
+            assert call_kwargs["temperature"] == 0.7
+            assert call_kwargs["top_p"] == 0.9
             assert call_kwargs["model_kwargs"]["min_tokens"] == 100
 
     def test_is_nvidia_endpoint(self):
@@ -857,6 +969,7 @@ class TestBindReasoningConfigNemotron3Nano:
             call.kwargs.get("chat_template_kwargs", {}).get("enable_thinking") is True
             for call in calls
         )
+        assert bound_llm is mock_llm
 
     def test_bind_reasoning_config_unsupported_model_returns_original(self):
         """Unsupported model returns original LLM without binding."""

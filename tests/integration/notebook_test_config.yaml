@@ -4,12 +4,14 @@
 
 # Vector Store Configuration
 vector_store:
-  name: "milvus"  # Name of the vector store backend (e.g., milvus, elasticsearch)
-  url: "http://localhost:19530"  # URL endpoint for the vector store service
+  name: "elasticsearch"  # Name of the vector store backend (e.g., milvus, elasticsearch)
+  url: "http://localhost:9200"  # URL endpoint for the vector store service
   index_type: "GPU_CAGRA"  # Type of vector index (e.g., GPU_CAGRA, IVF_FLAT)
   search_type: "dense"  # Type of search to perform (dense, hybrid)
-  enable_gpu_index: true  # Enable GPU acceleration for index building
-  enable_gpu_search: true  # Enable GPU acceleration for search operations
+  # Same env as APP_VECTORSTORE_ENABLEGPUINDEX — applies to Milvus and Elasticsearch (ES needs GPU image + license; see docs).
+  enable_gpu_index: false
+  # Same env as APP_VECTORSTORE_ENABLEGPUSEARCH — Milvus only; Elasticsearch does not support GPU search.
+  enable_gpu_search: false
   default_collection_name: "test_native"  # Default collection/index name for storing vectors
 
 # NV-Ingest Configuration
@@ -25,14 +27,14 @@ nv_ingest:
   text_depth: "page"  # Granularity level for text extraction (page, document)
   chunk_size: 512  # Maximum size of text chunks in tokens
   chunk_overlap: 150  # Number of overlapping tokens between chunks
-  caption_model_name: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for generating image captions
+  caption_model_name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"  # Model name for generating image captions
   caption_endpoint_url: "http://localhost:1977/v1/chat/completions"  # API endpoint for caption generation service
-  enable_pdf_splitter: true  # Enable PDF page splitting during ingestion
+  enable_paged_doc_split: false  # Enable paged document splitting during ingestion
 
 # LLM Configuration
 llm:
   server_url: "http://localhost:8999"  # URL endpoint for the LLM inference service (on-prem NIM default)
-  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Name of the language model to use for generation
+  model_name: "nvidia/nemotron-3-super-120b-a12b"  # Name of the language model to use for generation
   # api_key: ""  # Optional: API key for LLM service (overrides NVIDIA_API_KEY environment variable)
   parameters:
     max_tokens: 32768  # Maximum number of tokens to generate in response
@@ -41,28 +43,28 @@ llm:
 
 # Query Rewriter Configuration
 query_rewriter:
-  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for rewriting user queries to improve retrieval
+  model_name: "nvidia/nemotron-3-super-120b-a12b"  # Model for rewriting user queries to improve retrieval
   server_url: "localhost:8999"  # URL endpoint for query rewriter service
   enable_query_rewriter: false  # Enable automatic query rewriting before retrieval
   # api_key: ""  # Optional: API key for query rewriter (overrides NVIDIA_API_KEY environment variable)
 
 # Filter Expression Generator Configuration
 filter_expression_generator:
-  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for generating metadata filter expressions from queries
+  model_name: "nvidia/nemotron-3-super-120b-a12b"  # Model for generating metadata filter expressions from queries
   server_url: "localhost:8999"  # URL endpoint for filter expression generator service
   enable_filter_generator: false  # Enable automatic filter expression generation from natural language
   # api_key: ""  # Optional: API key for filter generator (overrides NVIDIA_API_KEY environment variable)
 
 # Embedding Configuration
 embeddings:
-  model_name: "nvidia/llama-nemotron-embed-1b-v2"  # Model for generating text embeddings
+  model_name: "nvidia/llama-nemotron-embed-vl-1b-v2"  # Model for generating embeddings
   dimensions: 2048  # Dimensionality of the embedding vectors
-  server_url: "http://localhost:9080/v1"  # URL endpoint for embedding service (on-prem NIM default)
+  server_url: "http://localhost:9081/v1"  # URL endpoint for embedding service (on-prem NIM default)
   # api_key: ""  # Optional: API key for embeddings (overrides NVIDIA_API_KEY environment variable)
 
 # Ranking Configuration
 ranking:
-  model_name: "nvidia/llama-3.2-nv-rerankqa-1b-v2"  # Model for reranking retrieved documents
+  model_name: "nvidia/llama-nemotron-rerank-1b-v2"  # Model for reranking retrieved documents
   server_url: "http://localhost:1976"  # URL endpoint for reranking service (on-prem NIM default)
   enable_reranker: true  # Enable reranking of retrieved documents before generation
   # api_key: ""  # Optional: API key for reranking (overrides NVIDIA_API_KEY environment variable)
@@ -82,18 +84,19 @@ tracing:
 # Vision-Language Model Configuration
 vlm:
   server_url: "http://localhost:1977/v1"  # URL endpoint for Vision-Language Model service
-  model_name: "nvidia/nemotron-nano-12b-v2-vl"  # Vision-Language Model for processing images and text
+  model_name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"  # Vision-Language Model for processing images and text
   # api_key: ""  # Optional: API key for VLM service (overrides NVIDIA_API_KEY environment variable)
 
-# MinIO Configuration
-minio:
-  endpoint: "localhost:9010"  # MinIO object storage endpoint
-  access_key: "minioadmin"  # MinIO access key for authentication
-  secret_key: "minioadmin"  # MinIO secret key for authentication
+# Object Store Configuration
+object_store:
+  endpoint: "localhost:9010"  # S3-compatible object-store endpoint
+  nv_ingest_endpoint: "seaweedfs:9010"  # Docker-network endpoint used by NV-Ingest
+  access_key: "seaweedfsadmin"  # Object-store access key for authentication
+  secret_key: "seaweedfsadmin"  # Object-store secret key for authentication
 
 # Summarizer Configuration
 summarizer:
-  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for generating document summaries
+  model_name: "nvidia/nemotron-3-super-120b-a12b"  # Model for generating document summaries
   server_url: "localhost:8999"  # URL endpoint for summarization service
   max_chunk_length: 50000  # Maximum character length for chunks to summarize
   chunk_overlap: 200  # Character overlap between chunks during summarization
@@ -105,7 +108,7 @@ summarizer:
 reflection:
   enable_reflection: false  # Enable self-reflection to improve answer quality
   max_loops: 3  # Maximum number of reflection iterations
-  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for reflection and quality assessment
+  model_name: "nvidia/nemotron-3-super-120b-a12b"  # Model for reflection and quality assessment
   server_url: ""  # URL endpoint for reflection service
   context_relevance_threshold: 1  # Minimum relevance score for context to be considered useful
   response_groundedness_threshold: 1  # Minimum groundedness score for response to be considered factual

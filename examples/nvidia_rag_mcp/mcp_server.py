@@ -270,21 +270,37 @@ async def tool_generate(
                             except json.JSONDecodeError:
                                 continue
 
-                        message_part = (
-                            data_obj.get("choices", [{}])[0]
-                            .get("message", {})
-                            .get("content", "")
-                        )
+                        choices = data_obj.get("choices", [])
+                        if not choices:
+                            continue
+                        choice = choices[0]
+                        message_part = choice.get("message", {}).get("content", "")
+                        if not message_part:
+                            message_part = choice.get("delta", {}).get("content", "")
                         if message_part:
                             concatenated_text.append(str(message_part))
 
-                        finish_reason = (
-                            data_obj.get("choices", [{}])[0].get("finish_reason")
-                        )
-                        if finish_reason == "stop":
-                            return "".join(concatenated_text)
+                        finish_reason = choice.get("finish_reason")
+                        if finish_reason:
+                            joined = "".join(concatenated_text)
+                            if not joined:
+                                text = await resp.text()
+                                raise RuntimeError(
+                                    f"RAG generate returned no content (status={resp.status}): "
+                                    f"{text[:500]}"
+                                )
+                            return joined
                 if concatenated_text:
                     return "".join(concatenated_text)
+                text = await resp.text()
+                raise RuntimeError(
+                    f"RAG generate returned no content (status={resp.status}): "
+                    f"{text[:500]}"
+                )
+            text = await resp.text()
+            raise RuntimeError(
+                f"RAG generate failed (status={resp.status}): {text[:500]}"
+            )
 
 
 @server.tool(
@@ -428,7 +444,7 @@ async def tool_get_summary(
 Args JSON:
 {
   "collection_name": "my_collection",
-  "vdb_endpoint": "http://milvus:19530"
+  "vdb_endpoint": "http://elasticsearch:9200"
 }
 """,
 )
@@ -466,7 +482,7 @@ Args JSON:
 {
   "collection_name": "my_collection",
   "document_names": ["file1.pdf", "file2.pdf"],
-  "vdb_endpoint": "http://milvus:19530"
+  "vdb_endpoint": "http://elasticsearch:9200"
 }
 """,
 )
@@ -581,7 +597,7 @@ async def tool_update_documents(
     description="""List collections from the Ingestor service.
 Args JSON:
 {
-  "vdb_endpoint": "http://milvus:19530"
+  "vdb_endpoint": "http://elasticsearch:9200"
 }
 """,
 )
@@ -715,7 +731,7 @@ async def tool_update_document_metadata(
 Args JSON:
 {
   "collection_name": "my_collection",
-  "vdb_endpoint": "http://milvus:19530",
+  "vdb_endpoint": "http://elasticsearch:9200",
   "metadata_schema": [],
   "description": "Optional description",
   "tags": ["tag1", "tag2"],

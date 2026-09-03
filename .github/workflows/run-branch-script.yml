@@ -1,0 +1,75 @@
+name: Run Branch Script
+
+# Generic dispatcher: checks out a specified branch and runs a script from it.
+# Lets us iterate on CI logic in feature branches without merging workflow
+# changes for every iteration. Especially useful for skill-eval runs
+# where the script under ci/ does all the install + run logic.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch / tag / SHA to check out'
+        required: true
+        default: 'develop'
+      script:
+        description: 'Script path relative to repo root'
+        required: true
+        default: 'ci/run_skill_eval.sh'
+      runner:
+        description: 'Runner label to use'
+        required: true
+        default: 'blueprints-skills-eval-runner'
+        type: choice
+        options:
+          - blueprints-skills-eval-runner
+          - sonarqube-workflows-bp-sre
+          - arc-runners-org-nvidia-ai-bp-2-gpu
+          - rag-eval
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run-branch-script-${{ inputs.ref }}-${{ inputs.script }}
+  cancel-in-progress: true
+
+jobs:
+  run:
+    name: Run ${{ inputs.script }} on ${{ inputs.ref }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout target ref
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Run script
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+          CLAUDE_CODE_DISABLE_THINKING: "1"
+        run: |
+          if [ ! -f "${{ inputs.script }}" ]; then
+            echo "Script not found at ${{ inputs.script }} on ref ${{ inputs.ref }}"
+            exit 1
+          fi
+          chmod +x "${{ inputs.script }}"
+          bash "${{ inputs.script }}"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: branch-script-${{ github.run_id }}
+          path: |
+            eval-results/
+            **/evals/results/
+            ci-logs/
+          retention-days: 14
+          if-no-files-found: ignore

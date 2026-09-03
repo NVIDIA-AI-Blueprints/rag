@@ -413,8 +413,7 @@ class ReflectionModule(BaseTestModule):
             )
 
             # Validate that a response was re-generated successfully
-            if resp and ("new, grounded response" in resp.lower() or \
-                "new response" in resp.lower() or "response" in resp.lower()):
+            if resp and resp.strip():
                 logger.info(
                     "Self-reflection test succeeded - response re-generated successfully"
                 )

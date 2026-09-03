@@ -188,7 +188,7 @@ To run only Nemotron Parse for PDF and table extraction with Helm:
      nimOperator:
        nemotron_parse:
          enabled: true
-       nemoretriever_ocr_v1:
+       ocr:
          enabled: false
        graphic_elements:
          enabled: false

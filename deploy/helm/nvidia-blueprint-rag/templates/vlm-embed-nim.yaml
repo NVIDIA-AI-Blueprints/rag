@@ -37,6 +37,10 @@ spec:
     nimCache:
       name: {{ $nimModel.service.name }}-cache
   replicas: {{ $nimModel.replicas | default 1 }}
+  {{- with $nimModel.podAnnotations }}
+  podAnnotations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   {{- with $nimModel.nodeSelector }}
   nodeSelector:
 {{ toYaml . | nindent 4 }}

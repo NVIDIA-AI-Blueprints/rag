@@ -30,7 +30,8 @@ from nvidia_rag.rag_server.reflection import (
     check_context_relevance,
     check_response_groundedness,
 )
-from nvidia_rag.rag_server.response_generator import APIError
+from nvidia_rag.rag_server.response_generator import APIError, RAGResponse
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.health_models import RAGHealthResponse
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -97,6 +98,17 @@ class TestNvidiaRAGInit:
             match="vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag",
         ):
             NvidiaRAG(vdb_op=InvalidVDB())
+
+    def test_init_with_lancedb_and_non_nrl_backend_raises(self):
+        """LanceDB is only supported when INGESTOR_BACKEND is set to nrl."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "lancedb"}, "nv_ingest": {"backend": "nv_ingest"}}
+        )
+
+        with pytest.raises(
+            ValueError, match="LanceDB is supported only with the NRL ingestion backend"
+        ):
+            NvidiaRAG(config=config)
 
     def test_init_with_prompts_dict(self):
         """Test initialization with prompts as a dictionary."""
@@ -245,8 +257,34 @@ class TestNvidiaRAGPrepareVDBOp:
         assert result == mock_vdb_op
         assert (
             mock_get_embedding.call_count >= 1
-        )  # Called during init and __prepare_vdb_op
+        )  # Called during init
         assert mock_get_vdb.call_count >= 1  # Called during __prepare_vdb_op
+
+    @patch("nvidia_rag.rag_server.main.get_embedding_model")
+    @patch("nvidia_rag.rag_server.main._get_vdb_op")
+    def test_prepare_vdb_op_reuses_default_vdb_op(
+        self, mock_get_vdb, mock_get_embedding
+    ):
+        """Default VDB preparation should be lazy and reused across requests."""
+        mock_embedder = Mock()
+        mock_get_embedding.return_value = mock_embedder
+        mock_vdb_op = Mock(spec=VDBRag)
+        mock_get_vdb.return_value = mock_vdb_op
+
+        rag = NvidiaRAG()
+
+        result_1 = rag._prepare_vdb_op(
+            vdb_endpoint=rag.config.vector_store.url,
+            embedding_model=rag.config.embeddings.model_name,
+            embedding_endpoint=rag.config.embeddings.server_url,
+        )
+        result_2 = rag._prepare_vdb_op()
+
+        assert result_1 is mock_vdb_op
+        assert result_2 is mock_vdb_op
+        mock_get_vdb.assert_called_once()
+        # The default embedder created at initialization is reused for VDB setup.
+        mock_get_embedding.assert_called_once()
 
     @patch("nvidia_rag.rag_server.main.get_embedding_model")
     @patch("nvidia_rag.rag_server.main._get_vdb_op")
@@ -274,6 +312,44 @@ class TestNvidiaRAGPrepareVDBOp:
             mock_get_embedding.call_count >= 1
         )  # Called during init and __prepare_vdb_op
         assert mock_get_vdb.call_count >= 1  # Called during __prepare_vdb_op
+
+    @pytest.mark.asyncio
+    async def test_generate_without_knowledge_base_does_not_prepare_vdb(self):
+        """Direct LLM/VLM generation should not create retrieval clients."""
+        rag = NvidiaRAG(vdb_op=Mock(spec=VDBRag))
+        expected_response = RAGResponse(generator=None, status_code=200)
+
+        with (
+            patch.object(rag, "_prepare_vdb_op") as mock_prepare_vdb,
+            patch.object(
+                rag, "_llm_chain", new_callable=AsyncMock
+            ) as mock_llm_chain,
+        ):
+            mock_llm_chain.return_value = expected_response
+
+            result = await rag.generate(
+                messages=[{"role": "user", "content": "hello"}],
+                use_knowledge_base=False,
+            )
+
+        assert result is expected_response
+        mock_prepare_vdb.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_vdb_cleanup_closes_one_off_operator_after_stream(self):
+        """One-off VDB operators should be closed when streaming finishes."""
+        rag = NvidiaRAG()
+        mock_vdb_op = Mock()
+        mock_vdb_op.close = Mock()
+
+        async def stream():
+            yield "chunk"
+
+        response = rag._with_vdb_cleanup(RAGResponse(stream()), mock_vdb_op)
+        chunks = [chunk async for chunk in response.generator]
+
+        assert chunks == ["chunk"]
+        mock_vdb_op.close.assert_called_once()
 
 
 class TestNvidiaRAGValidateCollections:
@@ -437,6 +513,51 @@ class TestNvidiaRAGBuildRetrieverQuery:
 
         result = rag._build_retriever_query_from_content(123)
         assert result == ("123", False)
+
+    def test_build_retriever_query_from_multimodal_text_only(self):
+        """Multimodal with text only (no image) returns joined text."""
+        rag = NvidiaRAG()
+
+        content = [
+            {"type": "text", "text": "Hello"},
+            {"type": "text", "text": "world"},
+        ]
+        result = rag._build_retriever_query_from_content(content)
+        assert result == ("Hello\n\nworld", False)
+
+    def test_build_retriever_query_from_multimodal_data_url(self):
+        """Image URL with data:image/png;base64 format."""
+        rag = NvidiaRAG()
+
+        content = [
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc123"}}
+        ]
+        result = rag._build_retriever_query_from_content(content)
+        assert result == ("data:image/png;base64,abc123", True)
+
+    def test_build_retriever_query_from_multimodal_image_url_empty(self):
+        """image_url with empty url returns text parts only."""
+        rag = NvidiaRAG()
+
+        content = [
+            {"type": "text", "text": "Hello"},
+            {"type": "image_url", "image_url": {"url": ""}},
+        ]
+        result = rag._build_retriever_query_from_content(content)
+        assert result == ("Hello", False)
+
+    def test_build_retriever_query_from_multimodal_image_url_with_detail(self):
+        """image_url with url and detail field."""
+        rag = NvidiaRAG()
+
+        content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": "http://x.com/img.jpg", "detail": "auto"},
+            }
+        ]
+        result = rag._build_retriever_query_from_content(content)
+        assert result == ("http://x.com/img.jpg", True)
 
 
 class TestNvidiaRAGPrintConversationHistory:

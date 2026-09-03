@@ -32,21 +32,10 @@ spec:
       affinity:
 {{ toYaml $cfg.affinity | nindent 8 }}
       {{- end }}
-      {{- with $cfg.initContainers }}
-      initContainers:
-{{ toYaml . | nindent 8 }}
-      {{- end }}
       containers:
         - name: {{ $cfg.appName }}
           image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"
           imagePullPolicy: {{ $cfg.image.pullPolicy }}
-          {{- if $cfg.preStartScript }}
-          command: ["sh", "-c"]
-          args:
-            - |
-{{ $cfg.preStartScript | indent 14 }}
-              exec uvicorn nvidia_rag.ingestor_server.server:app --port 8082 --host 0.0.0.0 --workers {{ $cfg.server.workers }}
-          {{- else }}
           command:
           - "uvicorn"
           - "nvidia_rag.ingestor_server.server:app"
@@ -56,21 +45,39 @@ spec:
           - "0.0.0.0"
           - "--workers"
           - "{{ $cfg.server.workers }}"
-          {{- end }}
           ports:
             - containerPort: 8082
+          {{- $eckCfg := index .Values "eck-elasticsearch" }}
+          {{- $vectorUser := index $cfg.envVars "APP_VECTORSTORE_USERNAME" }}
+          {{- $vectorPass := index $cfg.envVars "APP_VECTORSTORE_PASSWORD" }}
+          {{- $vectorApiKey := index $cfg.envVars "APP_VECTORSTORE_APIKEY" }}
+          {{- $vectorApiKeyId := index $cfg.envVars "APP_VECTORSTORE_APIKEY_ID" }}
+          {{- $vectorApiKeySecret := index $cfg.envVars "APP_VECTORSTORE_APIKEY_SECRET" }}
+          {{- $useElasticUserSecret := and $eckCfg.enabled (not $vectorUser) (not $vectorPass) (not $vectorApiKey) (not $vectorApiKeyId) (not $vectorApiKeySecret) }}
           {{- $apiKeysSecretName := include "apiKeysSecretName" . }}
           {{- $hasAnyKey := or .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.summaryLlmApiKey }}
           {{- $shouldCreateSecret := and .Values.apiKeysSecret.create (not .Values.apiKeysSecret.existingSecret) $hasAnyKey }}
           {{- $useExistingSecret := .Values.apiKeysSecret.existingSecret }}
           {{- $hasApiKeys := or $shouldCreateSecret $useExistingSecret }}
-          {{- if or $cfg.envVars $hasApiKeys }}
+          {{- if or $cfg.envVars $hasApiKeys $useElasticUserSecret }}
           env:
           {{- if $cfg.envVars }}
           {{- range $k, $v := $cfg.envVars }}
+          {{- if and $useElasticUserSecret (or (eq $k "APP_VECTORSTORE_USERNAME") (eq $k "APP_VECTORSTORE_PASSWORD")) }}
+          {{- else }}
             - name: "{{ $k }}"
               value: "{{ $v }}"
           {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- if $useElasticUserSecret }}
+            - name: APP_VECTORSTORE_USERNAME
+              value: "elastic"
+            - name: APP_VECTORSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nvidia-blueprint-rag.elasticsearchUserSecretName" . }}
+                  key: elastic
           {{- end }}
           {{- if $hasApiKeys }}
           {{- if or $useExistingSecret .Values.apiKeysSecret.embeddingsApiKey }}
@@ -88,10 +95,6 @@ spec:
                   key: SUMMARY_LLM_APIKEY
           {{- end }}
           {{- end }}
-          {{- end }}
-          {{- with $cfg.envFrom }}
-          envFrom:
-{{ toYaml . | nindent 12 }}
           {{- end }}
           {{- if $cfg.livenessProbe }}
           livenessProbe:
@@ -113,12 +116,8 @@ spec:
               subPath: {{ $cfg.persistence.subPath }}
               {{- end }}
           {{- end }}
-          {{- if $cfg.extraVolumeMounts }}
-{{ toYaml $cfg.extraVolumeMounts | nindent 12 }}
-          {{- end }}
-      {{- if or $cfg.persistence.enabled $cfg.extraVolumes }}
-      volumes:
       {{- if $cfg.persistence.enabled }}
+      volumes:
         - name: ingestor-server-data
           {{- if $cfg.persistence.existingClaim }}
           persistentVolumeClaim:
@@ -127,9 +126,5 @@ spec:
           persistentVolumeClaim:
             claimName: {{ printf "%s-data" $cfg.appName }}
           {{- end }}
-      {{- end }}
-      {{- if $cfg.extraVolumes }}
-{{ toYaml $cfg.extraVolumes | nindent 8 }}
-      {{- end }}
       {{- end }}
 {{- end }}

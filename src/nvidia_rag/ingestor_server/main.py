@@ -29,18 +29,18 @@ Private methods:
 2. __run_background_ingest_task: Ingest documents to the vector store.
 3. __build_ingestion_response: Build the ingestion response from results and failures.
 4. __ingest_document_summary: Drives summary generation and ingestion if enabled.
-5. __put_content_to_minio: Put NV-Ingest image/table/chart content to MinIO.
-6. __perform_shallow_extraction_workflow: Perform shallow extraction workflow for fast summary generation.
-7. __run_nvingest_batched_ingestion: Upload documents to the vector store using NV-Ingest.
-8. __nv_ingest_ingestion_pipeline: Run the NV-Ingest ingestion pipeline.
-9. __get_failed_documents: Get failed documents from the vector store.
-10. __get_non_supported_files: Get non-supported files from the vector store.
+5. __perform_shallow_extraction_workflow: Perform shallow extraction workflow for fast summary generation.
+6. __run_nvingest_batched_ingestion: Upload documents to the vector store using NV-Ingest.
+7. __nv_ingest_ingestion_pipeline: Run the NV-Ingest ingestion pipeline (object storage is configured in nvingest).
+8. __get_failed_documents: Get failed documents from the vector store.
+9. __get_non_supported_files: Get non-supported files from the vector store.
 """
 
 import asyncio
 import json
 import logging
 import os
+import shutil
 import time
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -61,6 +61,7 @@ from nvidia_rag.ingestor_server.nvingest import (
 )
 from nvidia_rag.ingestor_server.task_handler import INGESTION_TASK_HANDLER
 from nvidia_rag.rag_server.main import APIError
+from nvidia_rag.rag_server.response_generator import configure_object_store_operator
 from nvidia_rag.utils.batch_utils import calculate_dynamic_batch_parameters
 from nvidia_rag.utils.common import (
     create_catalog_metadata,
@@ -78,11 +79,11 @@ from nvidia_rag.utils.metadata_validation import (
     MetadataSchema,
     MetadataValidator,
 )
-from nvidia_rag.utils.minio_operator import (
-    get_minio_operator,
+from nvidia_rag.utils.object_store import (
+    DEFAULT_BUCKET_NAME,
+    get_object_store_operator,
     get_unique_thumbnail_id_collection_prefix,
     get_unique_thumbnail_id_file_name_prefix,
-    get_unique_thumbnail_id_from_result,
 )
 from nvidia_rag.utils.observability.tracing import (
     create_nv_ingest_trace_context,
@@ -151,6 +152,29 @@ class NvidiaRAGIngestor:
         # Track background summary tasks to prevent garbage collection
         self._background_tasks = set()
         self.config = config or NvidiaRAGConfig()
+        if self.mode == Mode.LITE:
+            current_backend = (self.config.vector_store.name or "").lower()
+            if current_backend and current_backend != "milvus":
+                logger.warning(
+                    "Lite mode requires the Milvus backend; overriding "
+                    "vector_store.name=%r to 'milvus'.",
+                    self.config.vector_store.name,
+                )
+            self.config.vector_store.name = "milvus"
+        if (
+            self.config.vector_store.name.lower() == "lancedb"
+            and self.config.nv_ingest.backend.lower() != "nrl"
+        ):
+            raise ValueError(
+                "LanceDB is supported only with the NRL ingestion backend "
+                "(INGESTOR_BACKEND=nrl)."
+            )
+        configure_object_store_operator(self.config)
+        # NRL handler — populated lazily on first upload_documents call when
+        # config.nv_ingest.backend == "nrl".  None means NV-Ingest path is active.
+        # Type annotation uses a string literal to avoid importing at module level
+        # (nemo_retriever may not be installed when the NV-Ingest backend is used).
+        self._nrl_handler: "NemoRetrieverHandler | None" = None
         self.prompts = get_prompts(prompts)
 
         # Initialize instance-based clients
@@ -158,23 +182,30 @@ class NvidiaRAGIngestor:
             config=self.config, get_lite_client=self.mode == Mode.LITE
         )
 
-        # Initialize MinIO operator - handle failures gracefully
+        # Initialize object-store operator - handle failures gracefully
         try:
             if self.mode == Mode.LITE:
-                raise ValueError("MinIO operations are not supported in RAG Lite mode")
-            self.minio_operator = get_minio_operator(config=self.config)
+                raise ValueError(
+                    "Object-store operations are not supported in RAG Lite mode"
+                )
+            self.object_store_operator = get_object_store_operator(config=self.config)
             # Ensure default bucket exists (idempotent operation)
             try:
-                self.minio_operator._make_bucket(bucket_name="a-bucket")
-                logger.debug("Ensured 'a-bucket' exists in MinIO")
+                self.object_store_operator._make_bucket(
+                    bucket_name=DEFAULT_BUCKET_NAME
+                )
+                logger.debug(
+                    "Ensured default object-store bucket '%s' exists",
+                    DEFAULT_BUCKET_NAME,
+                )
             except Exception as bucket_err:
                 # Log specific exception for debugging bucket creation issues
                 logger.debug("Could not ensure bucket exists: %s", bucket_err)
         except Exception as e:
-            self.minio_operator = None
-            # Error already logged in MinioOperator.__init__, just note it here
+            self.object_store_operator = None
+            # Error already logged in object-store operator init, just note it here
             logger.debug(
-                "MinIO operator set to None due to initialization failure, reason: %s",
+                "Object-store operator set to None due to initialization failure, reason: %s",
                 e,
             )
 
@@ -244,7 +275,10 @@ class NvidiaRAGIngestor:
                 config=self.config,
                 vdb_auth_token=vdb_auth_token,
             )
-            return vdb_op, collection_name
+            # Return the backend-canonicalized name (e.g. Elasticsearch
+            # lowercases index names) so downstream summary keys in Redis
+            # and object storage align with what GET /collections reports.
+            return vdb_op, vdb_op.collection_name
 
         if not bypass_validation and (collection_name or custom_metadata):
             raise ValueError(
@@ -288,6 +322,29 @@ class NvidiaRAGIngestor:
         if vdb_endpoint is None:
             vdb_endpoint = self.config.vector_store.url
 
+        # Lazy-init the NRL handler on the first upload_documents call when the NRL
+        # backend is configured.  NvidiaRAGIngestor is a singleton (instantiated once
+        # in server.py), so this branch executes at most once per process lifetime.
+        # The import is deferred so that the nemo_retriever package is not required
+        # when the default NV-Ingest backend is in use.
+        if self.config.nv_ingest.backend == "nrl" and self._nrl_handler is None:
+            try:
+                from nvidia_rag.ingestor_server.nemo_retriever.handler import (
+                    NemoRetrieverHandler,
+                )
+
+                self._nrl_handler = NemoRetrieverHandler(config=self.config)
+                logger.info(
+                    "NemoRetrieverHandler initialised (lazy, first upload_documents call, run_mode=%s)",
+                    self.config.nv_ingest.nrl_run_mode,
+                )
+            except Exception as nrl_init_err:
+                logger.exception(
+                    "Failed to initialise NemoRetrieverHandler — falling back to NV-Ingest backend: %s",
+                    nrl_init_err,
+                )
+                # _nrl_handler stays None → NV-Ingest path is used as fallback
+
         # Calculate dynamic batch parameters
         files_per_batch, concurrent_batches = calculate_dynamic_batch_parameters(
             filepaths=filepaths,
@@ -314,6 +371,19 @@ class NvidiaRAGIngestor:
         )
 
         state_manager.collection_name = collection_name
+
+        # NRL in-process ingestion only persists vectors to LanceDB; ES/Milvus are
+        # not wired to the NRL DataFrame → write_to_index path.
+        if (
+            self._nrl_handler is not None
+            and vdb_op is not None
+            and self.config.vector_store.name != "lancedb"
+        ):
+            raise ValueError(
+                "The NRL ingestion backend only supports LanceDB "
+                "(APP_VECTORSTORE_NAME=lancedb). Elasticsearch and Milvus are not "
+                "supported for the NRL pipeline."
+            )
 
         vdb_op.create_document_info_collection()
 
@@ -625,19 +695,38 @@ class NvidiaRAGIngestor:
             )
             logger.debug("Filepaths for ingestion after validation: %s", filepaths)
 
-            # Peform ingestion using nvingest for all files that have not failed
-            # Check if the provided collection_name exists in vector-DB
+            # Route ingestion through the configured backend.
+            # NRL path: self._nrl_handler is set (non-None) when
+            #   config.nv_ingest.backend == "nrl" and lazy-init succeeded.
+            # NV-Ingest path: default, unchanged behaviour.
 
             start_time = time.time()
-            results, failures = await self.__run_nvingest_batched_ingestion(
-                filepaths=filepaths,
-                collection_name=collection_name,
-                vdb_op=vdb_op,
-                split_options=split_options,
-                generate_summary=generate_summary,
-                summary_options=summary_options,
-                state_manager=state_manager,
-            )
+            if self._nrl_handler is not None:
+                # ---- NRL (NeMo-Retriever Library) in-process backend ----
+                # See NRL_INTEGRATION_PLAN.md §8 and __run_nrl_ingestion docstring.
+                logger.info(
+                    "NRL backend active — routing ingestion through NemoRetrieverHandler"
+                )
+                results, failures = await self.__run_nrl_ingestion(
+                    filepaths=filepaths,
+                    collection_name=collection_name,
+                    vdb_op=vdb_op,
+                    split_options=split_options,
+                    generate_summary=generate_summary,
+                    summary_options=summary_options,
+                    state_manager=state_manager,
+                )
+            else:
+                # ---- Default: NV-Ingest microservice backend (unchanged) ----
+                results, failures = await self.__run_nvingest_batched_ingestion(
+                    filepaths=filepaths,
+                    collection_name=collection_name,
+                    vdb_op=vdb_op,
+                    split_options=split_options,
+                    generate_summary=generate_summary,
+                    summary_options=summary_options,
+                    state_manager=state_manager,
+                )
 
             build_ingestion_response_start_time = time.time()
             response_data = await self.__build_ingestion_response(
@@ -702,8 +791,27 @@ class NvidiaRAGIngestor:
             logger.exception(
                 "Ingestion failed due to error: %s",
                 e,
-                exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+                # exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
             )
+            # When ingestion fails, mark pending summaries as FAILED so that
+            # blocking GET /v1/summary callers get an error response immediately
+            # instead of waiting for the full timeout.
+            if generate_summary and collection_name:
+                for filepath in filepaths:
+                    file_name = os.path.basename(filepath)
+                    try:
+                        SUMMARY_STATUS_HANDLER.update_progress(
+                            collection_name=collection_name,
+                            file_name=file_name,
+                            status="FAILED",
+                            error=f"Ingestion failed: {str(e)}",
+                        )
+                    except Exception as status_err:
+                        logger.warning(
+                            "Failed to update summary status for %s: %s",
+                            file_name,
+                            status_err,
+                        )
             raise e
 
     @trace_function("ingestor.main.build_ingestion_response", tracer=TRACER)
@@ -895,6 +1003,7 @@ class NvidiaRAGIngestor:
         if custom_metadata is None:
             custom_metadata = []
 
+        any_deleted = False
         for file in filepaths:
             file_name = os.path.basename(file)
 
@@ -925,6 +1034,77 @@ class NvidiaRAGIngestor:
                     file_name,
                     collection_name,
                 )
+                any_deleted = True
+
+        # Compact only when rows were actually soft-deleted. Without compaction,
+        # Milvus's indexed_rows count remains inflated by the deleted rows, causing
+        # nvingest's wait_for_index to compute an expected count that can never be
+        # reached (expected = stale_count + new_rows, actual = live_rows + new_rows).
+        if any_deleted:
+            # Guard uploaded files against concurrent cleanup during compaction.
+            #
+            # compact_and_wait_async releases the asyncio event loop (via
+            # asyncio.to_thread) for up to 30 seconds. During that window a
+            # concurrent PATCH for the same file can finish its own background
+            # ingest task, whose cleanup deletes the shared upload path — leaving
+            # this task's file missing when upload_documents validates it.
+            #
+            # We snapshot each file to a hidden temp path on the same filesystem
+            # (no extra RAM, same mount so the copy is fast) right before compaction
+            # starts. At this point no await has been issued since delete_documents,
+            # so no concurrent cleanup could have run yet. The finally block
+            # guarantees the temp files are removed regardless of what happens next.
+            #
+            # (SERVER mode only: in LIBRARY mode the caller owns its files.)
+            file_temp_copies: dict[str, str] = {}
+            if self.mode == Mode.SERVER:
+                for filepath in filepaths:
+                    try:
+                        dir_path = os.path.dirname(filepath)
+                        name, ext = os.path.splitext(os.path.basename(filepath))
+                        temp_path = os.path.join(
+                            dir_path, f".{name}_{uuid4().hex}{ext}"
+                        )
+                        shutil.copy2(filepath, temp_path)
+                        file_temp_copies[filepath] = temp_path
+                    except OSError:
+                        pass
+
+            try:
+                vdb_op, resolved_collection_name = (
+                    self.__prepare_vdb_op_and_collection_name(
+                        vdb_endpoint=vdb_endpoint,
+                        collection_name=collection_name,
+                        vdb_auth_token=vdb_auth_token,
+                        bypass_validation=True,
+                    )
+                )
+                if hasattr(vdb_op, "compact_and_wait_async"):
+                    await vdb_op.compact_and_wait_async(resolved_collection_name)
+
+                # Restore any files deleted by a concurrent task's cleanup
+                # while compaction held the event loop.
+                for filepath, temp_path in file_temp_copies.items():
+                    if not os.path.exists(filepath):
+                        logger.debug(
+                            "Restoring %s after concurrent cleanup removed it during compaction",
+                            filepath,
+                        )
+                        try:
+                            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                            shutil.copy2(temp_path, filepath)
+                        except OSError as e:
+                            logger.warning(
+                                "Failed to restore %s from temp copy: %s", filepath, e
+                            )
+
+            finally:
+                # Always remove temp copies — success, exception, or cancellation.
+                for temp_path in file_temp_copies.values():
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
 
         response = await self.upload_documents(
             filepaths=filepaths,
@@ -1122,8 +1302,13 @@ class NvidiaRAGIngestor:
             vdb_op.create_metadata_schema_collection()
             vdb_op.create_document_info_collection()
 
-            existing_collections = vdb_op.get_collection()
-            if collection_name in [f["collection_name"] for f in existing_collections]:
+            # Use check_collection_exists for the dedup short-circuit: it
+            # routes through the backend's canonical-name handling (e.g.
+            # Elasticsearch lowercases index names), so a second POST with
+            # the same mixed-case collection_name does not bypass the
+            # already-exists branch and re-run add_metadata_schema /
+            # add_document_info on top of an existing collection.
+            if vdb_op.check_collection_exists(collection_name):
                 return {
                     "message": f"Collection {collection_name} already exists.",
                     "collection_name": collection_name,
@@ -1398,42 +1583,42 @@ class NvidiaRAGIngestor:
             )
 
             response = vdb_op.delete_collections(collection_names)
-            # Delete citation metadata from Minio (skip if MinIO unavailable)
-            if self.minio_operator is not None:
+            # Delete citation metadata from object storage (skip if unavailable)
+            if self.object_store_operator is not None:
                 for collection in collection_names:
                     collection_prefix = get_unique_thumbnail_id_collection_prefix(
                         collection
                     )
                     try:
-                        delete_object_names = self.minio_operator.list_payloads(
+                        delete_object_names = self.object_store_operator.list_payloads(
                             collection_prefix
                         )
-                        self.minio_operator.delete_payloads(delete_object_names)
+                        self.object_store_operator.delete_payloads(delete_object_names)
                     except Exception as e:
                         logger.warning(
-                            f"Failed to delete MinIO objects for collection {collection}: {e}"
+                            f"Failed to delete object-store objects for collection {collection}: {e}"
                         )
 
-                # Delete document summary from Minio
+                # Delete document summary from object storage
                 for collection in collection_names:
                     collection_prefix = get_unique_thumbnail_id_collection_prefix(
                         f"summary_{collection}"
                     )
                     try:
-                        delete_object_names = self.minio_operator.list_payloads(
+                        delete_object_names = self.object_store_operator.list_payloads(
                             collection_prefix
                         )
                         if len(delete_object_names):
-                            self.minio_operator.delete_payloads(delete_object_names)
+                            self.object_store_operator.delete_payloads(delete_object_names)
                             logger.info(
-                                f"Deleted all document summaries from Minio for collection: {collection}"
+                                f"Deleted all document summaries from object storage for collection: {collection}"
                             )
                     except Exception as e:
                         logger.warning(
-                            f"Failed to delete MinIO summaries for collection {collection}: {e}"
+                            f"Failed to delete object-store summaries for collection {collection}: {e}"
                         )
             else:
-                logger.warning("MinIO unavailable - skipping metadata deletion")
+                logger.warning("Object store unavailable - skipping metadata deletion")
 
             return response
         except Exception as e:
@@ -1518,10 +1703,18 @@ class NvidiaRAGIngestor:
         vdb_endpoint: str | None = None,
         bypass_validation: bool = False,
         vdb_auth_token: str = "",
+        force_get_metadata: bool = False,
+        max_results: int | None = None,
     ) -> dict[str, Any]:
         """
         Retrieves filenames stored in the vector store.
         It's called when the GET endpoint of `/documents` API is invoked.
+
+        Args:
+            max_results: If set, cap ``documents`` to at most this many entries.
+                If ``None``, all matching documents are returned (no cap).
+                ``total_documents`` is always the full count in the collection,
+                not the length of the returned list.
 
         Returns:
             Dict[str, Any]: Response containing a list of documents with metadata.
@@ -1537,7 +1730,9 @@ class NvidiaRAGIngestor:
                 bypass_validation=bypass_validation,
                 vdb_auth_token=vdb_auth_token,
             )
-            documents_list = vdb_op.get_documents(collection_name)
+            documents_list = vdb_op.get_documents(
+                collection_name, force_get_metadata=force_get_metadata
+            )
 
             # Get metadata schema to filter out chunk-level auto-extracted fields
             metadata_schema = vdb_op.get_metadata_schema(collection_name)
@@ -1566,9 +1761,13 @@ class NvidiaRAGIngestor:
                 for doc_item in documents_list
             ]
 
+            total_documents = len(documents)
+            if max_results is not None:
+                documents = documents[: max(0, max_results)]
+
             return {
                 "documents": documents,
-                "total_documents": len(documents),
+                "total_documents": total_documents,
                 "message": "Document listing successfully completed.",
             }
 
@@ -1664,10 +1863,10 @@ class NvidiaRAGIngestor:
             if not deleted_docs and not not_found_docs:
                 deleted_docs = document_names
 
-            # Helper function to delete MinIO metadata for documents
-            def delete_minio_metadata(docs_to_delete: list[str]) -> None:
-                if self.minio_operator is None:
-                    logger.warning("MinIO unavailable - skipping metadata deletion")
+            # Helper function to delete object-store metadata for documents
+            def delete_object_store_metadata(docs_to_delete: list[str]) -> None:
+                if self.object_store_operator is None:
+                    logger.warning("Object store unavailable - skipping metadata deletion")
                     return
 
                 for doc in docs_to_delete:
@@ -1676,13 +1875,13 @@ class NvidiaRAGIngestor:
                         collection_name, doc
                     )
                     try:
-                        delete_object_names = self.minio_operator.list_payloads(
+                        delete_object_names = self.object_store_operator.list_payloads(
                             filename_prefix
                         )
-                        self.minio_operator.delete_payloads(delete_object_names)
+                        self.object_store_operator.delete_payloads(delete_object_names)
                     except Exception as e:
                         logger.warning(
-                            f"Failed to delete MinIO objects for doc {doc}: {e}"
+                            f"Failed to delete object-store objects for doc {doc}: {e}"
                         )
 
                     # Delete document summary
@@ -1690,15 +1889,17 @@ class NvidiaRAGIngestor:
                         f"summary_{collection_name}", doc
                     )
                     try:
-                        delete_object_names = self.minio_operator.list_payloads(
+                        delete_object_names = self.object_store_operator.list_payloads(
                             filename_prefix
                         )
                         if len(delete_object_names):
-                            self.minio_operator.delete_payloads(delete_object_names)
-                            logger.info(f"Deleted summary for doc: {doc} from Minio")
+                            self.object_store_operator.delete_payloads(delete_object_names)
+                            logger.info(
+                                "Deleted summary for doc: %s from object storage", doc
+                            )
                     except Exception as e:
                         logger.warning(
-                            f"Failed to delete MinIO summary for doc {doc}: {e}"
+                            f"Failed to delete object-store summary for doc {doc}: {e}"
                         )
 
             # Recalculate collection info from remaining documents after deletion
@@ -1823,8 +2024,8 @@ class NvidiaRAGIngestor:
                     "documents": [],
                 }
 
-            # Delete MinIO metadata for successfully deleted documents
-            delete_minio_metadata(deleted_docs)
+            # Delete object-store metadata for successfully deleted documents
+            delete_object_store_metadata(deleted_docs)
 
             # Build documents response with metadata and document_info from fetched data
             documents = []
@@ -1874,85 +2075,6 @@ class NvidiaRAGIngestor:
             "total_documents": 0,
             "documents": [],
         }
-
-    @trace_function("ingestor.main.put_content_to_minio", tracer=TRACER)
-    def __put_content_to_minio(
-        self,
-        results: list[list[dict[str, str | dict]]],
-        collection_name: str,
-    ) -> None:
-        """
-        Put nv-ingest image/table/chart content to minio
-        """
-        if not self.config.enable_citations:
-            logger.info(f"Skipping minio insertion for collection: {collection_name}")
-            return  # Don't perform minio insertion if captioning is disabled
-
-        payloads = []
-        object_names = []
-
-        for result in results:
-            for result_element in result:
-                if result_element.get("document_type") in ["image", "structured"]:
-                    # Extract required fields
-                    metadata = result_element.get("metadata", {})
-                    content = result_element.get("metadata").get("content")
-
-                    file_name = os.path.basename(
-                        result_element.get("metadata")
-                        .get("source_metadata")
-                        .get("source_id")
-                    )
-                    page_number = (
-                        result_element.get("metadata")
-                        .get("content_metadata")
-                        .get("page_number")
-                    )
-                    location = (
-                        result_element.get("metadata")
-                        .get("content_metadata")
-                        .get("location")
-                    )
-
-                    # Get unique_thumbnail_id using the centralized function
-                    # Try with extracted location first, fallback to content_metadata if None
-                    unique_thumbnail_id = get_unique_thumbnail_id_from_result(
-                        collection_name=collection_name,
-                        file_name=file_name,
-                        page_number=page_number,
-                        location=location,
-                        metadata=metadata,
-                    )
-
-                    if unique_thumbnail_id is not None:
-                        # Pull content from result_element
-                        payloads.append({"content": content})
-                        object_names.append(unique_thumbnail_id)
-                    # If unique_thumbnail_id is None, the item is skipped
-                    # (warning already logged in get_unique_thumbnail_id_from_result)
-
-        if self.minio_operator is not None:
-            if os.getenv("ENABLE_MINIO_BULK_UPLOAD", "True") in ["True", "true"]:
-                logger.info(f"Bulk uploading {len(payloads)} payloads to MinIO")
-                try:
-                    self.minio_operator.put_payloads_bulk(
-                        payloads=payloads, object_names=object_names
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to bulk upload to MinIO: {e}")
-            else:
-                logger.info(f"Sequentially uploading {len(payloads)} payloads to MinIO")
-                for payload, object_name in zip(payloads, object_names, strict=False):
-                    try:
-                        self.minio_operator.put_payload(
-                            payload=payload, object_name=object_name
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to upload {object_name} to MinIO: {e}")
-        else:
-            logger.warning(
-                f"MinIO unavailable - skipping upload of {len(payloads)} payloads"
-            )
 
     @trace_function("ingestor.main.process_shallow_batch", tracer=TRACER)
     async def __process_shallow_batch(
@@ -2143,6 +2265,223 @@ class NvidiaRAGIngestor:
                     )
 
             logger.info("Shallow extraction complete, starting deep ingestion")
+
+    # ------------------------------------------------------------------
+    # NRL (NeMo-Retriever Library) ingestion path
+    # Mirrors __run_nvingest_batched_ingestion for the in-process NRL backend.
+    # See NRL_INTEGRATION_PLAN.md §5, §7, §8 for design rationale.
+    # ------------------------------------------------------------------
+
+    @trace_function("ingestor.main.run_nrl_ingestion", tracer=TRACER)
+    async def __run_nrl_ingestion(
+        self,
+        filepaths: list[str],
+        collection_name: str,
+        vdb_op: VDBRag | None = None,
+        split_options: dict[str, Any] | None = None,
+        generate_summary: bool = False,
+        summary_options: dict[str, Any] | None = None,
+        state_manager: IngestionStateManager | None = None,
+    ) -> tuple[list[list[dict[str, str | dict]]], list[tuple[str, Any]]]:
+        """NRL-backed mirror of __run_nvingest_batched_ingestion.
+
+        Passes all files to NemoRetrieverHandler in a single call — GraphIngestor
+        manages its own internal parallelism via Ray ("batch" mode) or a single
+        in-process thread pool ("inprocess" mode).  The outer batching loop used
+        by the NV-Ingest path is not needed here.
+
+        Per-batch progress updates are not available yet; GET /status returns
+        "processing" for all documents until the pipeline completes.
+        See TODO(NRL-ASYNC) in handler.py for the future progress-callback hook.
+
+        Args:
+            filepaths: Absolute paths of documents to ingest.
+            collection_name: Target collection in the vector store.
+            vdb_op: Active VDBRag instance; controls embed/store stages.
+                Pass None to skip both (e.g. text-only extraction).
+            split_options: Chunking parameters forwarded to the NRL split stage.
+            generate_summary: Whether to generate document summaries post-ingest.
+            summary_options: Advanced summary options dict supporting keys:
+                page_filter, shallow_summary, summarization_strategy.
+            state_manager: IngestionStateManager for async status tracking.
+
+        Returns:
+            (results, failures) in the same shape as __run_nvingest_batched_ingestion:
+            - results:  list[list[dict]] — per-document extraction results in the
+                        NV-Ingest-compatible format produced by
+                        IngestSchemaManager.to_nv_ingest_results_format().
+            - failures: list[tuple[str, Any]] — (source_path, error) pairs consumed
+                        by __get_failed_documents.
+        """
+        # ------------------------------------------------------------------
+        # Extract summary options — mirrors __run_nvingest_batched_ingestion
+        # ------------------------------------------------------------------
+        shallow_summary = False
+        if summary_options:
+            shallow_summary = summary_options.get("shallow_summary", False)
+
+        # ------------------------------------------------------------------
+        # Pre-filter: identify files whose extensions are not supported by NRL.
+        # Mirrors __remove_unsupported_files / __get_non_supported_files from the
+        # NV-Ingest path so unsupported files are reported with a clear
+        # "Unsupported file type" error rather than silently producing zero chunks.
+        # Logic lives in nemo_retriever/filters.py, not here.
+        # ------------------------------------------------------------------
+        from nvidia_rag.ingestor_server.nemo_retriever.filters import filter_unsupported
+
+        filepaths, unsupported_failures = filter_unsupported(filepaths)
+
+        if not filepaths:
+            logger.warning(
+                "NRL: no supported files remain after pre-filter; "
+                "returning %d unsupported failure(s) immediately",
+                len(unsupported_failures),
+            )
+            return [], unsupported_failures
+
+        # ------------------------------------------------------------------
+        # Set PENDING status for all files when summary generation is requested.
+        # Mirrors the identical block at the top of __run_nvingest_batched_ingestion
+        # so that callers polling GET /summary see a consistent initial state.
+        # ------------------------------------------------------------------
+        if generate_summary:
+            logger.debug("NRL: setting PENDING summary status for %d files", len(filepaths))
+            for filepath in filepaths:
+                file_name = os.path.basename(filepath)
+                SUMMARY_STATUS_HANDLER.set_status(
+                    collection_name=collection_name,
+                    file_name=file_name,
+                    status_data={
+                        "status": "PENDING",
+                        "queued_at": datetime.now(UTC).isoformat(),
+                        "file_name": file_name,
+                        "collection_name": collection_name,
+                    },
+                )
+
+            # Shallow summary: run NRL text-only extraction first, fire the summary
+            # background task, then fall through to the full pipeline below.
+            # NRL equivalent of __perform_shallow_extraction_workflow.
+            # See NRL_INTEGRATION_PLAN.md §7 (Summarisation — Minimal Changes).
+            if shallow_summary:
+                logger.info(
+                    "NRL: running shallow (text-only) extraction for %d files "
+                    "before full ingest pipeline",
+                    len(filepaths),
+                )
+                page_filter = summary_options.get("page_filter") if summary_options else None
+                summarization_strategy = (
+                    summary_options.get("summarization_strategy") if summary_options else None
+                )
+                try:
+                    shallow_schema_mgr = await self._nrl_handler.ingest_shallow(filepaths)
+                    shallow_results = shallow_schema_mgr.to_nv_ingest_results_format()
+                    task = asyncio.create_task(
+                        self.__ingest_document_summary(
+                            shallow_results,
+                            collection_name=collection_name,
+                            page_filter=page_filter,
+                            summarization_strategy=summarization_strategy,
+                            is_shallow=True,
+                        )
+                    )
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
+                    logger.info(
+                        "NRL: shallow summary task queued for %d files", len(filepaths)
+                    )
+                except Exception as shallow_err:
+                    logger.error(
+                        "NRL: shallow extraction failed — summary will be skipped, "
+                        "proceeding with full ingest: %s",
+                        shallow_err,
+                    )
+
+        # ------------------------------------------------------------------
+        # Full pipeline — all files in one NRL call.
+        # GraphIngestor handles concurrency internally; no batching loop needed.
+        # ------------------------------------------------------------------
+        logger.info(
+            "NRL: starting full ingest pipeline for %d file(s) in collection '%s'",
+            len(filepaths),
+            collection_name,
+        )
+        nrl_start_time = time.time()
+        schema_mgr = await self._nrl_handler.ingest(
+            filepaths=filepaths,
+            vdb_op=vdb_op,
+            split_options=split_options,
+        )
+        logger.info(
+            "NRL: ingest pipeline completed in %.2f s — %d rows returned",
+            time.time() - nrl_start_time,
+            schema_mgr.row_count(),
+        )
+
+        # Persist embedded rows to LanceDB (NRL GraphIngestor does not call vdb_upload).
+        if vdb_op is not None and self.config.vector_store.name == "lancedb":
+            raw_records = schema_mgr.to_raw_records()
+            lancedb_write_t0 = time.time()
+            await asyncio.to_thread(vdb_op.run, raw_records)
+            logger.info(
+                "NRL: LanceDB write finished in %.2f s (%d raw record(s))",
+                time.time() - lancedb_write_t0,
+                len(raw_records),
+            )
+
+        # ------------------------------------------------------------------
+        # Convert NRL output to the shape the rest of the pipeline expects.
+        #
+        # to_nv_ingest_results_format() produces the list[list[dict]] shape that
+        # __build_ingestion_response and generate_document_summaries consume.
+        # This adapter is the ONLY place that knows the NRL → NV-Ingest shape
+        # mapping; it can be removed once downstream consumers are refactored to
+        # accept canonical records directly.
+        # See NRL_INTEGRATION_PLAN.md §7.
+        # ------------------------------------------------------------------
+        results: list[list[dict[str, str | dict]]] = (
+            schema_mgr.to_nv_ingest_results_format()
+        )
+
+        # failures shape: list[tuple[path, error]] — consumed by __get_failed_documents
+        # which accesses failure[0] (path) and failure[1] (error message).
+        # unsupported_failures are prepended so they appear first in the response.
+        failures: list[tuple[str, Any]] = unsupported_failures + [
+            (path, "NRL ingest produced no embedded chunks for this document")
+            for path in schema_mgr.failed_sources()
+        ]
+
+        if failures:
+            logger.warning(
+                "NRL: %d document(s) produced no embedded chunks: %s",
+                len(failures),
+                [os.path.basename(str(f[0])) for f in failures],
+            )
+
+        # ------------------------------------------------------------------
+        # Non-shallow summary: fire background task after full ingest completes.
+        # Mirrors the asyncio.create_task block in __nv_ingest_ingestion_pipeline.
+        # ------------------------------------------------------------------
+        if generate_summary and not shallow_summary:
+            page_filter = summary_options.get("page_filter") if summary_options else None
+            summarization_strategy = (
+                summary_options.get("summarization_strategy") if summary_options else None
+            )
+            task = asyncio.create_task(
+                self.__ingest_document_summary(
+                    results,
+                    collection_name=collection_name,
+                    page_filter=page_filter,
+                    summarization_strategy=summarization_strategy,
+                )
+            )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+            logger.info(
+                "NRL: summary generation task queued for %d file(s)", len(filepaths)
+            )
+
+        return results, failures
 
     @trace_function("ingestor.main.run_nvingest_batched_ingestion", tracer=TRACER)
     async def __run_nvingest_batched_ingestion(
@@ -2351,7 +2690,7 @@ class NvidiaRAGIngestor:
         This methods performs following steps:
         - Perform extraction and splitting using NV-ingest ingestor (NV-Ingest)
         - Embeds and add documents to Vectorstore collection (NV-Ingest)
-        - Put content to MinIO (Ingestor Server)
+        - Persist structured content and images to object storage (NV-Ingest `.store()`, see nvingest)
         - Update batch progress with the ingestion response (Ingestor Server)
 
         Arguments:
@@ -2436,16 +2775,6 @@ class NvidiaRAGIngestor:
             raise Exception(error_message)
 
         try:
-            if self.mode != Mode.LITE:
-                start_time = time.time()
-                self.__put_content_to_minio(
-                    results=results, collection_name=collection_name
-                )
-                end_time = time.time()
-                logger.info(
-                    f"== MinIO upload for collection_name: {collection_name} "
-                    f"for batch {batch_number} is complete! Time taken: {end_time - start_time} seconds =="
-                )
             start_time = time.time()
             batch_progress_response = await self.__build_ingestion_response(
                 results=results,
@@ -2470,7 +2799,7 @@ class NvidiaRAGIngestor:
             )
         except Exception as e:
             logger.error(
-                "Failed to put content to minio: %s, citations would be disabled for collection: %s",
+                "Failed to build ingestion response or update batch progress: %s, collection: %s",
                 str(e),
                 collection_name,
                 exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
@@ -2594,6 +2923,7 @@ class NvidiaRAGIngestor:
                 enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                 pdf_split_processing_options=state_manager.pdf_split_processing_options,
                 prompts=self.prompts,
+                store_images=self.mode != Mode.LITE,
             )
 
             start_time = time.time()
@@ -2673,6 +3003,7 @@ class NvidiaRAGIngestor:
                 enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                 pdf_split_processing_options=state_manager.pdf_split_processing_options,
                 prompts=self.prompts,
+                store_images=self.mode != Mode.LITE,
             )
             start_time = time.time()
             logger.info(
@@ -2720,6 +3051,7 @@ class NvidiaRAGIngestor:
                     enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                     pdf_split_processing_options=state_manager.pdf_split_processing_options,
                     prompts=self.prompts,
+                    store_images=self.mode != Mode.LITE,
                 )
                 start_time = time.time()
                 logger.info(
@@ -2761,6 +3093,7 @@ class NvidiaRAGIngestor:
                     enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                     pdf_split_processing_options=state_manager.pdf_split_processing_options,
                     prompts=self.prompts,
+                    store_images=self.mode != Mode.LITE,
                 )
                 start_time = time.time()
                 logger.info(
@@ -2970,7 +3303,7 @@ class NvidiaRAGIngestor:
                 failed_documents.append(
                     {
                         "document_name": filename,
-                        "error_message": "Ingestion did not complete successfully",
+                        "error_message": "Ingestion did not complete successfully, document not found in the vector database",
                     }
                 )
                 failed_documents_filenames.add(filename)

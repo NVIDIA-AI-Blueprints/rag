@@ -18,7 +18,7 @@ nimOperator:
     image:
       repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
       pullPolicy: IfNotPresent
-      tag: "1.8.0"
+      tag: "2.0.9"
     resources:
       limits:
         nvidia.com/gpu: 2
