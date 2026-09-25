@@ -11,8 +11,9 @@ def test_cryptography_not_vulnerable_cve_2026_34073() -> None:
     assert Version(version("cryptography")) >= Version("46.0.6")
 
 
-def test_pillow_not_vulnerable_cve_2026_42311() -> None:
-    assert Version(version("pillow")) >= Version("12.2.0")
+def test_pillow_not_vulnerable_cve_2026_54058() -> None:
+    # CVE-2026-54058, CVE-2026-59197 and related: heap OOB in multiple image codecs
+    assert Version(version("pillow")) >= Version("12.3.0")
 
 
 def test_urllib3_not_vulnerable_cve_2026_44432() -> None:
@@ -31,5 +32,16 @@ def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
     assert Version(version("orjson")) >= Version("3.11.6")
 
 
-def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
-    assert Version(version("langsmith")) >= Version("0.8.0")
+def test_langsmith_not_vulnerable_ghsa_f4xh_w4cj_qxq8() -> None:
+    # GHSA-f4xh-w4cj-qxq8: TracingMiddleware arbitrary server-side file read
+    assert Version(version("langsmith")) >= Version("0.8.18")
+
+
+def test_aiohttp_not_vulnerable_cve_2026_50269() -> None:
+    # CVE-2026-50269 and 10 related CVEs: CRLF injection, cookie bypass, DoS
+    assert Version(version("aiohttp")) >= Version("3.14.1")
+
+
+def test_bleach_not_vulnerable_ghsa_gj48_438w_jh9v() -> None:
+    # GHSA-gj48-438w-jh9v, GHSA-8rfp-98v4-mmr6: XSS bypass via href sanitization
+    assert Version(version("bleach")) >= Version("6.4.0")
