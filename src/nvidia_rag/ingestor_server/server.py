@@ -48,7 +48,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
-from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT as HTTP_422_UNPROCESSABLE_ENTITY
 
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
 from nvidia_rag.rag_server.main import APIError
