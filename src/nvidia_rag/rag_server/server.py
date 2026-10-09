@@ -43,7 +43,7 @@ from prometheus_client import REGISTRY, CollectorRegistry, generate_latest
 from prometheus_client.multiprocess import MultiProcessCollector
 from pydantic import BaseModel, Field, constr, model_validator
 from starlette.responses import Response
-from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT as HTTP_422_UNPROCESSABLE_ENTITY
 
 from nvidia_rag.rag_server.health import print_health_report
 from nvidia_rag.rag_server.main import APIError, NvidiaRAG
