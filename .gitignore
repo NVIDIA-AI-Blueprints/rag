@@ -85,4 +85,7 @@ tests/data/
 /.claude/
 skills-lock.json
 
+# CVE fix audit reports (local only — archive externally if needed)
+cve-fix-reports/
+
 # Workbench Project Layout
