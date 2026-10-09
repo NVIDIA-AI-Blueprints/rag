@@ -82,7 +82,6 @@ import pandas as pd
 from nemo_retriever.graph_ingestor import GraphIngestor
 
 from nvidia_rag.ingestor_server.nemo_retriever.extensions import (
-    NRL_SUPPORTED_EXTENSIONS,
     _AUDIO_VIDEO_EXTS,
     _EXT_TO_TYPE,
     _HTML_EXTS,
@@ -90,6 +89,7 @@ from nvidia_rag.ingestor_server.nemo_retriever.extensions import (
     _PDF_DOC_EXTS,
     _TEXT_EXTS,
     _TYPE_ORDER,
+    NRL_SUPPORTED_EXTENSIONS,
 )
 from nvidia_rag.ingestor_server.nemo_retriever.ingest_schema_manager import (
     IngestSchemaManager,
@@ -126,9 +126,7 @@ class NemoRetrieverHandler:
         self._run_mode: str = getattr(config.nv_ingest, "nrl_run_mode", "batch")
         # One pipeline at a time: NRL / Ray owns its own worker threads.
         self._executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=1)
-        logger.info(
-            "NemoRetrieverHandler initialised (run_mode=%s)", self._run_mode
-        )
+        logger.info("NemoRetrieverHandler initialised (run_mode=%s)", self._run_mode)
 
     # ------------------------------------------------------------------
     # Public async API
@@ -246,14 +244,11 @@ class NemoRetrieverHandler:
         """
         logger.info("ingest_shallow() called with %d filepath(s)", len(filepaths))
 
-        supported = [
-            fp for fp in filepaths if Path(fp).suffix.lower() in _PDF_DOC_EXTS
-        ]
+        supported = [fp for fp in filepaths if Path(fp).suffix.lower() in _PDF_DOC_EXTS]
         skipped_count = len(filepaths) - len(supported)
         if skipped_count:
             skipped_paths = [
-                fp for fp in filepaths
-                if Path(fp).suffix.lower() not in _PDF_DOC_EXTS
+                fp for fp in filepaths if Path(fp).suffix.lower() not in _PDF_DOC_EXTS
             ]
             logger.warning(
                 "ingest_shallow: skipping %d non-PDF/DOC/PPTX file(s) "
@@ -279,7 +274,9 @@ class NemoRetrieverHandler:
             self._executor, self._run_sync, ingestor, "pdf_doc_shallow"
         )
         logger.info(
-            "ingest_shallow complete: %d rows in %.2fs", len(df), time.perf_counter() - t0
+            "ingest_shallow complete: %d rows in %.2fs",
+            len(df),
+            time.perf_counter() - t0,
         )
         return IngestSchemaManager(df)
 
@@ -316,7 +313,9 @@ class NemoRetrieverHandler:
 
         non_empty = {k: len(v) for k, v in classified.items() if v}
         logger.info(
-            "File classification result (%d file(s) total): %s", len(filepaths), non_empty
+            "File classification result (%d file(s) total): %s",
+            len(filepaths),
+            non_empty,
         )
         return classified
 
@@ -346,10 +345,10 @@ class NemoRetrieverHandler:
         classified = self._classify_filepaths(filepaths)
 
         builders: dict[str, Any] = {
-            "pdf_doc":     self._build_pdf_doc_ingestor,
-            "image":       self._build_image_ingestor,
-            "text":        self._build_text_ingestor,
-            "html":        self._build_html_ingestor,
+            "pdf_doc": self._build_pdf_doc_ingestor,
+            "image": self._build_image_ingestor,
+            "text": self._build_text_ingestor,
+            "html": self._build_html_ingestor,
             "audio_video": self._build_audio_video_ingestor,
         }
 
@@ -364,7 +363,9 @@ class NemoRetrieverHandler:
                 len(paths),
                 paths,
             )
-            gi = builders[type_key](paths, split_options, extract_override, vdb_op, store_images)
+            gi = builders[type_key](
+                paths, split_options, extract_override, vdb_op, store_images
+            )
             result.append((type_key, gi))
 
         logger.info(
@@ -557,9 +558,7 @@ class NemoRetrieverHandler:
     # Synchronous execution (runs inside ThreadPoolExecutor)
     # ------------------------------------------------------------------
 
-    def _run_sync(
-        self, ingestor: GraphIngestor, type_label: str = ""
-    ) -> pd.DataFrame:
+    def _run_sync(self, ingestor: GraphIngestor, type_label: str = "") -> pd.DataFrame:
         """Call ``ingestor.ingest()`` and materialise the result as a DataFrame.
 
         ``inprocess`` mode returns a ``pandas.DataFrame`` directly.

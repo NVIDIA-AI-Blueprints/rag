@@ -80,7 +80,9 @@ def _extract_token_usage_from_llm_result(response: LLMResult) -> Usage | None:
             or token_usage.get("generated_token_count")
             or 0
         )
-        total_tokens = token_usage.get("total_tokens") or (prompt_tokens + completion_tokens)
+        total_tokens = token_usage.get("total_tokens") or (
+            prompt_tokens + completion_tokens
+        )
     else:
         # Fallback: usage_metadata on generation.message (ChatNVIDIA streaming)
         for generations in response.generations:
@@ -91,8 +93,12 @@ def _extract_token_usage_from_llm_result(response: LLMResult) -> Usage | None:
                     and gen.message.usage_metadata
                 ):
                     meta = gen.message.usage_metadata
-                    prompt_tokens += meta.get("input_tokens") or meta.get("prompt_tokens") or 0
-                    completion_tokens += meta.get("output_tokens") or meta.get("completion_tokens") or 0
+                    prompt_tokens += (
+                        meta.get("input_tokens") or meta.get("prompt_tokens") or 0
+                    )
+                    completion_tokens += (
+                        meta.get("output_tokens") or meta.get("completion_tokens") or 0
+                    )
         total_tokens = prompt_tokens + completion_tokens
     if total_tokens <= 0:
         return None
@@ -181,8 +187,7 @@ def _is_nvidia_endpoint(url: str | None) -> bool:
     url_lower = url.lower()
     # Non-NVIDIA endpoints
     if any(
-        provider in url_lower
-        for provider in ["azure", "openai", "anthropic", "claude"]
+        provider in url_lower for provider in ["azure", "openai", "anthropic", "claude"]
     ):
         return False
     # NVIDIA URLs
@@ -266,10 +271,20 @@ def _bind_reasoning_config(
     model = kwargs.get("model", "")
     enable_thinking = _resolve_enable_thinking(config=config, **kwargs)
     params = config.llm.parameters if config is not None else None
-    reasoning_budget = kwargs.get("reasoning_budget") or (params.reasoning_budget if params else 0)
+    reasoning_budget = kwargs.get("reasoning_budget") or (
+        params.reasoning_budget if params else 0
+    )
     low_effort = kwargs.get("low_effort") or (params.low_effort if params else False)
-    min_think = kwargs.get("min_thinking_tokens") or (params.min_thinking_tokens if params else 0) or 0
-    max_think = kwargs.get("max_thinking_tokens") or (params.max_thinking_tokens if params else 0) or 0
+    min_think = (
+        kwargs.get("min_thinking_tokens")
+        or (params.min_thinking_tokens if params else 0)
+        or 0
+    )
+    max_think = (
+        kwargs.get("max_thinking_tokens")
+        or (params.max_thinking_tokens if params else 0)
+        or 0
+    )
 
     # Check specific variants first, then fall through to the general nemotron-3 check
 
@@ -280,10 +295,18 @@ def _bind_reasoning_config(
             llm_endpoint = kwargs.get("llm_endpoint", "")
             if llm_endpoint:
                 llm = llm.bind(nvext={"max_thinking_tokens": budget})
-                logger.info("nemotron-3-nano (local): enable_thinking=%s, nvext.max_thinking_tokens=%d", enable_thinking, budget)
+                logger.info(
+                    "nemotron-3-nano (local): enable_thinking=%s, nvext.max_thinking_tokens=%d",
+                    enable_thinking,
+                    budget,
+                )
             else:
                 llm = llm.bind(reasoning_budget=budget)
-                logger.info("nemotron-3-nano (API): enable_thinking=%s, reasoning_budget=%d", enable_thinking, budget)
+                logger.info(
+                    "nemotron-3-nano (API): enable_thinking=%s, reasoning_budget=%d",
+                    enable_thinking,
+                    budget,
+                )
         else:
             logger.info("nemotron-3-nano: enable_thinking=%s", enable_thinking)
         return llm
@@ -291,7 +314,11 @@ def _bind_reasoning_config(
     if _is_nemotron_nano_9b_v2(model):
         if min_think > 0 and max_think > 0:
             llm = llm.bind(min_thinking_tokens=min_think, max_thinking_tokens=max_think)
-            logger.info("nemotron-nano-9b-v2: min_thinking_tokens=%d, max_thinking_tokens=%d", min_think, max_think)
+            logger.info(
+                "nemotron-nano-9b-v2: min_thinking_tokens=%d, max_thinking_tokens=%d",
+                min_think,
+                max_think,
+            )
         elif min_think > 0 or max_think > 0:
             raise ValueError(
                 "nemotron-nano-9b-v2 requires both min_thinking_tokens and max_thinking_tokens "
@@ -309,7 +336,9 @@ def _bind_reasoning_config(
         llm = llm.bind(chat_template_kwargs=template_kwargs)
         logger.info(
             "nemotron-3: enable_thinking=%s, reasoning_budget=%d, low_effort=%s",
-            enable_thinking, budget, low_effort,
+            enable_thinking,
+            budget,
+            low_effort,
         )
         return llm
 
@@ -463,10 +492,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             "default_headers": NVIDIA_API_DEFAULT_HEADERS,
             **({"model_kwargs": model_kwargs} if model_kwargs else {}),
         }
-        if (
-            supports_nvidia_generation_params
-            and kwargs.get("temperature") is not None
-        ):
+        if supports_nvidia_generation_params and kwargs.get("temperature") is not None:
             chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
         if supports_nvidia_generation_params and kwargs.get("top_p") is not None:
             chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
@@ -1125,8 +1151,18 @@ def get_streaming_filter_think_parser_async(
     filter_enabled = os.getenv("FILTER_THINK_TOKENS", "true").lower() == "true"
 
     if filter_enabled:
-        logger.info("Think token filtering is enabled (async), enable_thinking=%s", enable_thinking)
-        return RunnableGenerator(partial(streaming_filter_think_async, enable_thinking=enable_thinking))
+        logger.info(
+            "Think token filtering is enabled (async), enable_thinking=%s",
+            enable_thinking,
+        )
+        return RunnableGenerator(
+            partial(streaming_filter_think_async, enable_thinking=enable_thinking)
+        )
     else:
-        logger.info("Think token filtering is disabled (async), enable_thinking=%s", enable_thinking)
-        return RunnableGenerator(partial(_content_fallback_async, enable_thinking=enable_thinking))
+        logger.info(
+            "Think token filtering is disabled (async), enable_thinking=%s",
+            enable_thinking,
+        )
+        return RunnableGenerator(
+            partial(_content_fallback_async, enable_thinking=enable_thinking)
+        )

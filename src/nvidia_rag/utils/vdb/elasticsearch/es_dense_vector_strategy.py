@@ -75,7 +75,9 @@ class DenseVectorStrategyWithIndexOptions(DenseVectorStrategy):
     ) -> None:
         super().__init__(**kwargs)
         self._vector_index_options: dict[str, Any] = (
-            vector_index_options if vector_index_options is not None else dict(_DEFAULT_GPU_INDEX_OPTIONS)
+            vector_index_options
+            if vector_index_options is not None
+            else dict(_DEFAULT_GPU_INDEX_OPTIONS)
         )
 
     def es_mappings_settings(
@@ -90,5 +92,7 @@ class DenseVectorStrategyWithIndexOptions(DenseVectorStrategy):
             vector_field=vector_field,
             num_dimensions=num_dimensions,
         )
-        mappings["properties"][vector_field]["index_options"] = self._vector_index_options
+        mappings["properties"][vector_field]["index_options"] = (
+            self._vector_index_options
+        )
         return mappings, settings

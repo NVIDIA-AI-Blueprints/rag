@@ -1073,7 +1073,9 @@ async def _update_file_progress(
     )
 
 
-async def _store_summary_in_object_store(document: Document, config: NvidiaRAGConfig | None = None):
+async def _store_summary_in_object_store(
+    document: Document, config: NvidiaRAGConfig | None = None
+):
     """Store document summary in object storage."""
     summary = document.metadata["summary"]
     file_name = document.metadata["filename"]

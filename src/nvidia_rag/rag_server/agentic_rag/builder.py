@@ -110,9 +110,7 @@ class AgenticLLMOverrides:
     # each role gets its own client with that role's configured model/endpoint
     # but the request-provided generation params applied.
     # Mutable; not part of equality / hashing.
-    _built_llms: dict[str, Any] = field(
-        default_factory=dict, repr=False, compare=False
-    )
+    _built_llms: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
     def has_any_override(self) -> bool:
         """True if at least one non-None override is set."""
@@ -318,9 +316,7 @@ def _make_role_llm(
     temperature = _resolve_role_generation_param(
         role_cfg, fallback_cfg, rag_config, "temperature"
     )
-    top_p = _resolve_role_generation_param(
-        role_cfg, fallback_cfg, rag_config, "top_p"
-    )
+    top_p = _resolve_role_generation_param(role_cfg, fallback_cfg, rag_config, "top_p")
     max_tokens = _resolve_role_generation_param(
         role_cfg, fallback_cfg, rag_config, "max_tokens"
     )

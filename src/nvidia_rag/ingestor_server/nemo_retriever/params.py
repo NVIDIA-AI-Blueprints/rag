@@ -66,9 +66,7 @@ def make_extract_params(
         "extract_infographics": config.nv_ingest.extract_infographics,
         "extract_images": config.nv_ingest.extract_images,
         "extract_page_as_image": config.nv_ingest.extract_page_as_image,
-
         "table_output_format": "markdown",
-
         "batch_tuning": BatchTuningParams(pdf_extract_workers=9),
     }
 
@@ -82,11 +80,15 @@ def make_extract_params(
     if config.nv_ingest.page_elements_invoke_url:
         params["page_elements_invoke_url"] = config.nv_ingest.page_elements_invoke_url
     if config.nv_ingest.graphic_elements_invoke_url:
-        params["graphic_elements_invoke_url"] = config.nv_ingest.graphic_elements_invoke_url
+        params["graphic_elements_invoke_url"] = (
+            config.nv_ingest.graphic_elements_invoke_url
+        )
     if config.nv_ingest.ocr_invoke_url:
         params["ocr_invoke_url"] = config.nv_ingest.ocr_invoke_url
     if config.nv_ingest.table_structure_invoke_url:
-        params["table_structure_invoke_url"] = config.nv_ingest.table_structure_invoke_url
+        params["table_structure_invoke_url"] = (
+            config.nv_ingest.table_structure_invoke_url
+        )
 
     # TODO: Map config.nv_ingest.extract_tables_method to
     # ExtractParams.nemotron_parse_invoke_url when the Nemotron Parse endpoint

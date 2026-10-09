@@ -1144,9 +1144,7 @@ async def create_collections(
     },
 )
 @trace_function("ingestor.server.create_collection", tracer=TRACER)
-async def create_collection(
-    data: CreateCollectionRequest
-) -> CreateCollectionResponse:
+async def create_collection(data: CreateCollectionRequest) -> CreateCollectionResponse:
     """
     Endpoint to create a collection with catalog metadata.
     Returns status message.

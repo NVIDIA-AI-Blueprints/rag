@@ -19,8 +19,8 @@ This module provides utilities for calculating optimal batch parameters
 based on file characteristics and system resources.
 """
 
-import os
 import logging
+import os
 from pathlib import Path
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
@@ -30,22 +30,36 @@ logger = logging.getLogger(__name__)
 
 # Text-like file extensions that process quickly
 # These are mapped to TXT or HTML in EXTENSION_TO_DOCUMENT_TYPE
-TEXT_LIKE_EXTENSIONS = frozenset({
-    "txt",
-    "md",
-    "json",
-    "sh",
-    "html",
-})
+TEXT_LIKE_EXTENSIONS = frozenset(
+    {
+        "txt",
+        "md",
+        "json",
+        "sh",
+        "html",
+    }
+)
 
 # Optimal batch parameters for text-like files
 # Text files process quickly, so we use larger batches with sequential processing
-TEXT_FILE_CONCURRENT_BATCHES = 4 # Fixed number of concurrent batches for text-like files
-TEXT_FILE_MEMORY_OVERHEAD_FACTOR = 2.0 # Factor to account for memory overhead of other file types
-TEXT_ALLOWED_BATCH_SIZES = [16, 32, 64, 128, 250] # Allowed batch sizes for text-like files
+TEXT_FILE_CONCURRENT_BATCHES = (
+    4  # Fixed number of concurrent batches for text-like files
+)
+TEXT_FILE_MEMORY_OVERHEAD_FACTOR = (
+    2.0  # Factor to account for memory overhead of other file types
+)
+TEXT_ALLOWED_BATCH_SIZES = [
+    16,
+    32,
+    64,
+    128,
+    250,
+]  # Allowed batch sizes for text-like files
 
 # Threshold percentage to determine if workload is text-heavy
-TEXT_FILE_PERCENTAGE_THRESHOLD = 50.0 # Threshold percentage to determine if workload is text file heavy
+TEXT_FILE_PERCENTAGE_THRESHOLD = (
+    50.0  # Threshold percentage to determine if workload is text file heavy
+)
 
 
 def calculate_dynamic_batch_parameters(
@@ -98,16 +112,18 @@ def calculate_dynamic_batch_parameters(
     for filepath in filepaths:
         # Extract extension (lowercase, without dot)
         ext = Path(filepath).suffix.lstrip(".").lower()
-        
+
         # Track extension distribution
         extension_counts[ext] = extension_counts.get(ext, 0) + 1
-        
+
         # Check if it's a text-like file
         if ext in TEXT_LIKE_EXTENSIONS:
             text_file_count += 1
 
     # Calculate percentage of text-like files
-    text_file_percentage = (text_file_count / total_files) * 100 if total_files > 0 else 0
+    text_file_percentage = (
+        (text_file_count / total_files) * 100 if total_files > 0 else 0
+    )
 
     # Log file distribution for debugging
     logger.debug(
@@ -118,7 +134,9 @@ def calculate_dynamic_batch_parameters(
 
     # Decision logic: If majority (>TEXT_FILE_PERCENTAGE_THRESHOLD%) are text-like files, optimize for them
     if text_file_percentage > TEXT_FILE_PERCENTAGE_THRESHOLD:
-        files_per_batch, concurrent_batches = calculate_text_like_batch_params(filepaths, config)
+        files_per_batch, concurrent_batches = calculate_text_like_batch_params(
+            filepaths, config
+        )
         logger.info(
             f"Dynamic batching: Detected {text_file_percentage:.1f}% text-like files. "
             f"Using optimized parameters for text processing: "
@@ -157,11 +175,15 @@ def calculate_text_like_batch_params(
     )
 
     # Calculate memory required per file
-    memory_per_file_bytes = (avg_file_size_bytes + avg_embedding_size_bytes) * TEXT_FILE_MEMORY_OVERHEAD_FACTOR
+    memory_per_file_bytes = (
+        avg_file_size_bytes + avg_embedding_size_bytes
+    ) * TEXT_FILE_MEMORY_OVERHEAD_FACTOR
 
     # Calculate max concurrent files in a single ingestion job (i.e batch size x concurrent batches)
-    max_concurrent_files = config.nv_ingest.max_memory_budget_mb * 1024 * 1024 // memory_per_file_bytes
-    
+    max_concurrent_files = (
+        config.nv_ingest.max_memory_budget_mb * 1024 * 1024 // memory_per_file_bytes
+    )
+
     logger.debug(
         f"Text-like file batching parameters: "
         f"avg_file_size_bytes={avg_file_size_bytes}, "
@@ -186,6 +208,7 @@ def calculate_average_file_size(filepaths: list[str]) -> int:
     for filepath in filepaths:
         total_size += os.path.getsize(filepath)
     return total_size // len(filepaths)
+
 
 def calculate_average_embedding_size(
     avg_file_size_bytes: int,

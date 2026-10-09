@@ -547,9 +547,7 @@ async def translate_graph_stream(
                         ):
                             yield sse
 
-                    label = _format_label(
-                        data.get("key", ""), data.get("params") or {}
-                    )
+                    label = _format_label(data.get("key", ""), data.get("params") or {})
                     if event == "stage_start":
                         wire_event_type = EventType.STAGE_START.value
                     elif event == "stage_end":

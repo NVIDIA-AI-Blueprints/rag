@@ -192,7 +192,12 @@ async def generate_subqueries(
             if not line:
                 continue
             # Strip numbered prefix: "1. ", "2) ", etc.
-            if len(line) >= 3 and line[0].isdigit() and line[1] in ".)" and line[2] == " ":
+            if (
+                len(line) >= 3
+                and line[0].isdigit()
+                and line[1] in ".)"
+                and line[2] == " "
+            ):
                 prefixed.append(line[3:].strip())
             # Strip bullet prefix: "- ", "* "
             elif line[:2] in ("- ", "* "):
@@ -203,12 +208,7 @@ async def generate_subqueries(
         # if the LLM returned a single unprefixed query
         return [q for q in prefixed if q] or [q for q in unprefixed if q]
 
-    generate_queries = (
-        prompt_perspectives
-        | llm
-        | StrOutputParser()
-        | _parse_subqueries
-    )
+    generate_queries = prompt_perspectives | llm | StrOutputParser() | _parse_subqueries
 
     questions = await generate_queries.ainvoke(
         {"question": query}, config={"run_name": "sub-queries-generation"}
@@ -753,7 +753,8 @@ async def iterative_query_decomposition(
             if already_tried_empty:
                 logger.info(
                     "Follow-up '%s' already returned empty, stopping at depth %d",
-                    followup_question, depth + 1,
+                    followup_question,
+                    depth + 1,
                 )
                 break
             questions = [followup_question]

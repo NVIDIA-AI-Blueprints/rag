@@ -263,7 +263,9 @@ class ElasticVDB(VDBRagIngest):
     def _get_retrieval_strategy(self, hybrid: bool = False) -> DenseVectorStrategy:
         """Return the appropriate retrieval strategy based on GPU config."""
         if self.config.vector_store.enable_gpu_index:
-            logger.debug("Elasticsearch GPU indexing enabled: using DenseVectorStrategyWithIndexOptions")
+            logger.debug(
+                "Elasticsearch GPU indexing enabled: using DenseVectorStrategyWithIndexOptions"
+            )
             return DenseVectorStrategyWithIndexOptions(hybrid=hybrid)
         return DenseVectorStrategy(hybrid=hybrid)
 
@@ -681,7 +683,9 @@ class ElasticVDB(VDBRagIngest):
 
         # Get all document info for the collection
         all_document_info = self._get_all_document_info(collection_name)
-        all_document_info_map = {doc["document_name"]: doc["info_value"] for doc in all_document_info}
+        all_document_info_map = {
+            doc["document_name"]: doc["info_value"] for doc in all_document_info
+        }
 
         # Get the list of documents
         documents_list = []
@@ -701,7 +705,9 @@ class ElasticVDB(VDBRagIngest):
                 {
                     "document_name": os.path.basename(source_name),
                     "metadata": metadata_dict,
-                    "document_info": all_document_info_map.get(os.path.basename(source_name), {}),
+                    "document_info": all_document_info_map.get(
+                        os.path.basename(source_name), {}
+                    ),
                 }
             )
         return documents_list
@@ -937,7 +943,9 @@ class ElasticVDB(VDBRagIngest):
                 conflicts="proceed",
             )
         except ConflictError:
-            logger.info(f"Document info delete_by_query saw a version conflict for collection: {collection_name}, document: {document_name}, info type: {info_type}; proceeding to re-index.")
+            logger.info(
+                f"Document info delete_by_query saw a version conflict for collection: {collection_name}, document: {document_name}, info type: {info_type}; proceeding to re-index."
+            )
         # Add the document info to the index
         data = {
             "collection_name": collection_name,
@@ -979,7 +987,9 @@ class ElasticVDB(VDBRagIngest):
                 )
                 return {}
         except Exception as e:
-            logger.error(f"Error getting document info for {info_type}, {collection_name}, {document_name}: {e}")
+            logger.error(
+                f"Error getting document info for {info_type}, {collection_name}, {document_name}: {e}"
+            )
             return {}
 
     def _get_all_document_info(self, collection_name: str) -> list[dict[str, Any]]:
@@ -990,11 +1000,13 @@ class ElasticVDB(VDBRagIngest):
         """
         collection_name = self._normalize_index_name(collection_name)
         try:
-            if not self._check_index_exists(index_name=DEFAULT_DOCUMENT_INFO_COLLECTION):
+            if not self._check_index_exists(
+                index_name=DEFAULT_DOCUMENT_INFO_COLLECTION
+            ):
                 logger.warning(
-                    f"Document info collection {DEFAULT_DOCUMENT_INFO_COLLECTION} does not exist." \
+                    f"Document info collection {DEFAULT_DOCUMENT_INFO_COLLECTION} does not exist."
                     "Skipping document info retrieval."
-                    )
+                )
                 return []
             # scan() pages through all matching hits, bypassing the 10-doc default size cap.
             query = get_all_document_info_query(collection_name)
@@ -1008,7 +1020,9 @@ class ElasticVDB(VDBRagIngest):
                 )
             ]
         except Exception as e:
-            logger.error(f"Error getting all document info for collection {collection_name}: {e}")
+            logger.error(
+                f"Error getting all document info for collection {collection_name}: {e}"
+            )
             return []
 
     def get_catalog_metadata(self, collection_name: str) -> dict[str, Any]:
@@ -1112,8 +1126,10 @@ class ElasticVDB(VDBRagIngest):
                     "Elasticsearch Retrieval: Using hybrid search with ranker type: '%s'",
                     self.config.vector_store.ranker_type,
                 )
-            if self.config.vector_store.search_type == SearchType.HYBRID and \
-               self.config.vector_store.ranker_type == RankerType.WEIGHTED:
+            if (
+                self.config.vector_store.search_type == SearchType.HYBRID
+                and self.config.vector_store.ranker_type == RankerType.WEIGHTED
+            ):
                 retriever_lambda = RunnableLambda(
                     lambda x: retriever.invoke(
                         x,
@@ -1133,7 +1149,9 @@ class ElasticVDB(VDBRagIngest):
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )
-            logger.info("  [VDB Search] Performing vector similarity search in collection...")
+            logger.info(
+                "  [VDB Search] Performing vector similarity search in collection..."
+            )
             retriever_docs = retriever_chain.invoke(
                 query, config={"run_name": "retriever"}
             )
@@ -1141,8 +1159,14 @@ class ElasticVDB(VDBRagIngest):
 
             end_time = time.time()
             latency = end_time - start_time
-            logger.info("  [VDB Search] Retrieved %d documents from collection '%s'", len(docs), collection_name)
-            logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", latency)
+            logger.info(
+                "  [VDB Search] Retrieved %d documents from collection '%s'",
+                len(docs),
+                collection_name,
+            )
+            logger.info(
+                "  [VDB Search] Total VDB operation latency: %.4f seconds", latency
+            )
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
         except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
@@ -1244,7 +1268,8 @@ class ElasticVDB(VDBRagIngest):
             results = [doc for doc, _ in scored]
         except Exception as e:
             logger.error(
-                "Error generating embeddings or performing similarity search: %s", e,
+                "Error generating embeddings or performing similarity search: %s",
+                e,
                 exc_info=True,
             )
             return []

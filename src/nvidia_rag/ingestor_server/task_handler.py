@@ -134,7 +134,11 @@ class IngestionTaskHandler:
         if self._enable_redis_backend:
             self._redis_client.set(
                 task_id,
-                json.dumps(IngestionTaskStateSchema(task_id=task_id, state="PENDING").model_dump()),
+                json.dumps(
+                    IngestionTaskStateSchema(
+                        task_id=task_id, state="PENDING"
+                    ).model_dump()
+                ),
             )
         else:
             async with self._asyncio_lock:
@@ -171,9 +175,11 @@ class IngestionTaskHandler:
         if self._enable_redis_backend:
             self._redis_client.set(
                 task_id,
-                json.dumps(IngestionTaskStateSchema(
-                    task_id=task_id, state=status, result=result
-                ).model_dump()),
+                json.dumps(
+                    IngestionTaskStateSchema(
+                        task_id=task_id, state=status, result=result
+                    ).model_dump()
+                ),
             )
         else:
             async with self._asyncio_lock:
@@ -238,9 +244,11 @@ class IngestionTaskHandler:
             state_key = f"{task_id}:state_dict"
             self._redis_client.set(
                 state_key,
-                json.dumps(TaskStateDictSchema(
-                    task_id=task_id, state_dict=state_dict
-                ).model_dump()),
+                json.dumps(
+                    TaskStateDictSchema(
+                        task_id=task_id, state_dict=state_dict
+                    ).model_dump()
+                ),
             )
         else:
             async with self._asyncio_lock:

@@ -53,9 +53,9 @@ class IngestionStateManager:
         self.total_documents_completed = 0
         self.total_batches_completed = 0
         self.documents_completed_list = []  # list[dict[str, Any]]
-        
+
         # NV-Ingest document-wise status variables
-        self.nv_ingest_status = {} # { "extraction_completed": int, "document_wise_status": dict[str, Any] }
+        self.nv_ingest_status = {}  # { "extraction_completed": int, "document_wise_status": dict[str, Any] }
         self.nv_ingest_document_wise_status = {}
 
         # Add request data
@@ -125,7 +125,9 @@ class IngestionStateManager:
         }
         filenames = [os.path.basename(filepath) for filepath in filepaths]
         self.nv_ingest_document_wise_status = dict.fromkeys(filenames, "not_started")
-        self.nv_ingest_status["document_wise_status"] = self.nv_ingest_document_wise_status
+        self.nv_ingest_status["document_wise_status"] = (
+            self.nv_ingest_document_wise_status
+        )
         return self.nv_ingest_status
 
     async def update_nv_ingest_status(
@@ -134,13 +136,15 @@ class IngestionStateManager:
     ):
         async with self.asyncio_lock:
             self.nv_ingest_document_wise_status.update(nv_ingest_document_wise_status)
-            self.nv_ingest_status["document_wise_status"] = self.nv_ingest_document_wise_status
-            self.nv_ingest_status["extraction_completed"] = len([
-                status
-                for status in self.nv_ingest_document_wise_status.values()
-                if status == "completed"
-            ])
-        logger.debug(
-            f"Updated NV-Ingest status: {self.nv_ingest_status}"
-        )
+            self.nv_ingest_status["document_wise_status"] = (
+                self.nv_ingest_document_wise_status
+            )
+            self.nv_ingest_status["extraction_completed"] = len(
+                [
+                    status
+                    for status in self.nv_ingest_document_wise_status.values()
+                    if status == "completed"
+                ]
+            )
+        logger.debug(f"Updated NV-Ingest status: {self.nv_ingest_status}")
         return self.nv_ingest_status
