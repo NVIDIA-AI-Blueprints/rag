@@ -275,6 +275,50 @@ class TestGetMetadataConfiguration:
 class TestPrepareCustomMetadataDataframe:
     """Test prepare_custom_metadata_dataframe function"""
 
+    def test_source_metadata_preserves_internal_file_path_column(self, tmp_path):
+        """User fields named source must not overwrite the NV-Ingest join key."""
+        all_file_paths = ["path/to/file1.txt"]
+        custom_metadata = [
+            {
+                "filename": "file1.txt",
+                "metadata": {"source": "user-source", "source_1": "user-source-1"},
+            }
+        ]
+        csv_file_path = tmp_path / "custom_metadata.csv"
+
+        source_field, metadata_fields = prepare_custom_metadata_dataframe(
+            all_file_paths,
+            str(csv_file_path),
+            custom_metadata,
+        )
+
+        metadata_df = pd.read_csv(csv_file_path, index_col=0)
+        assert source_field == "source_2"
+        assert metadata_df[source_field].tolist() == all_file_paths
+        assert metadata_df["source"].tolist() == ["user-source"]
+        assert metadata_df["source_1"].tolist() == ["user-source-1"]
+        assert set(metadata_fields) == {"filename", "source", "source_1"}
+        assert source_field not in metadata_fields
+
+    def test_prepare_custom_metadata_dataframe_without_file_paths(self, tmp_path):
+        """Empty input keeps the existing source column and field list behavior."""
+        csv_file_path = tmp_path / "custom_metadata.csv"
+        custom_metadata = [
+            {"filename": "file1.txt", "metadata": {"source": "user-source"}}
+        ]
+
+        source_field, metadata_fields = prepare_custom_metadata_dataframe(
+            [],
+            str(csv_file_path),
+            custom_metadata,
+        )
+
+        metadata_df = pd.read_csv(csv_file_path, index_col=0)
+        assert source_field == "source"
+        assert not metadata_fields
+        assert list(metadata_df.columns) == ["source"]
+        assert metadata_df.empty
+
     @patch("pandas.DataFrame.to_csv")
     def test_prepare_custom_metadata_dataframe(self, mock_to_csv):
         """Test preparing custom metadata dataframe"""
