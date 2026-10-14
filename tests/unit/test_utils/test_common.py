@@ -16,12 +16,12 @@
 import importlib
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pandas as pd
 import pytest
 from langchain_core.documents import Document
-
 from nvidia_rag.utils.common import (
     combine_dicts,
     create_catalog_metadata,
@@ -275,7 +275,9 @@ class TestGetMetadataConfiguration:
 class TestPrepareCustomMetadataDataframe:
     """Test prepare_custom_metadata_dataframe function"""
 
-    def test_source_metadata_preserves_internal_file_path_column(self, tmp_path):
+    def test_source_metadata_preserves_internal_file_path_column(
+        self, tmp_path: Path
+    ) -> None:
         """User fields named source must not overwrite the NV-Ingest join key."""
         all_file_paths = ["path/to/file1.txt"]
         custom_metadata = [
@@ -300,7 +302,9 @@ class TestPrepareCustomMetadataDataframe:
         assert set(metadata_fields) == {"filename", "source", "source_1"}
         assert source_field not in metadata_fields
 
-    def test_prepare_custom_metadata_dataframe_without_file_paths(self, tmp_path):
+    def test_prepare_custom_metadata_dataframe_without_file_paths(
+        self, tmp_path: Path
+    ) -> None:
         """Empty input keeps the existing source column and field list behavior."""
         csv_file_path = tmp_path / "custom_metadata.csv"
         custom_metadata = [
