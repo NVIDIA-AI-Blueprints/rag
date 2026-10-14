@@ -309,10 +309,6 @@ def prepare_custom_metadata_dataframe(
         field["name"]: field.get("user_defined", True) for field in metadata_schema
     }
 
-    meta_source_field = "source"
-    custom_metadata_df_dict = {
-        meta_source_field: all_file_paths,
-    }
     # Prepare map for filename to metadata
     filename_to_metadata = {
         item["filename"]: item["metadata"] for item in custom_metadata
@@ -325,9 +321,26 @@ def prepare_custom_metadata_dataframe(
 
     all_metadata_fields.add("filename")
 
-    # Track which fields are actually included in the CSV
-    included_fields = []
+    meta_source_field = "source"
+    if (
+        all_file_paths
+        and "source" in all_metadata_fields
+        and schema_flags.get("source", True)
+    ):
+        meta_source_field = next(
+            f"source_{suffix}"
+            for suffix in range(1, len(all_metadata_fields) + 2)
+            if (
+                f"source_{suffix}" not in all_metadata_fields
+                or not schema_flags.get(f"source_{suffix}", True)
+            )
+        )
 
+    custom_metadata_df_dict = {
+        meta_source_field: all_file_paths,
+    }
+
+    included_fields = []
     for metadata_field in all_metadata_fields:
         # Skip auto-extracted fields (user_defined=False) entirely
         # Let nv-ingest extract these fields
