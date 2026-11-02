@@ -1,4 +1,4 @@
-mcp>=1.23.1
+mcp>=1.23.1,<2
 aiohttp>=3.13.3
 fastmcp>=3.2.0
 anyio>=4.12.0
