@@ -1,5 +1,7 @@
 <h1>NVIDIA RAG Blueprint</h1>
 
+> **Deprecation notice (Oct 2026):** This project is no longer actively maintained, and new production use is not recommended. The blueprint is retained for reference only.
+
 Retrieval-Augmented Generation (RAG) combines the reasoning power of large language models (LLMs)
 with real-time retrieval from trusted data sources.
 It grounds AI responses in enterprise knowledge,
