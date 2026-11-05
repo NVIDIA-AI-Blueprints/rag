@@ -1991,10 +1991,12 @@ class NvidiaRAG:
             vlm_endpoint_cfg = (
                 vlm_settings.get("vlm_endpoint") or self.config.vlm.server_url
             )
-            vlm_temperature_cfg = (
-                vlm_settings.get("vlm_temperature") or self.config.vlm.temperature
-            )
-            vlm_top_p_cfg = vlm_settings.get("vlm_top_p") or self.config.vlm.top_p
+            vlm_temperature_cfg = vlm_settings.get("vlm_temperature")
+            if vlm_temperature_cfg is None:
+                vlm_temperature_cfg = self.config.vlm.temperature
+            vlm_top_p_cfg = vlm_settings.get("vlm_top_p")
+            if vlm_top_p_cfg is None:
+                vlm_top_p_cfg = self.config.vlm.top_p
             vlm_max_tokens_cfg = (
                 vlm_settings.get("vlm_max_tokens") or self.config.vlm.max_tokens
             )
@@ -3577,13 +3579,12 @@ class NvidiaRAG:
                             vlm_settings.get("vlm_endpoint")
                             or self.config.vlm.server_url
                         )
-                        vlm_temperature_cfg = (
-                            vlm_settings.get("vlm_temperature")
-                            or self.config.vlm.temperature
-                        )
-                        vlm_top_p_cfg = (
-                            vlm_settings.get("vlm_top_p") or self.config.vlm.top_p
-                        )
+                        vlm_temperature_cfg = vlm_settings.get("vlm_temperature")
+                        if vlm_temperature_cfg is None:
+                            vlm_temperature_cfg = self.config.vlm.temperature
+                        vlm_top_p_cfg = vlm_settings.get("vlm_top_p")
+                        if vlm_top_p_cfg is None:
+                            vlm_top_p_cfg = self.config.vlm.top_p
                         vlm_max_tokens_cfg = (
                             vlm_settings.get("vlm_max_tokens")
                             or self.config.vlm.max_tokens
