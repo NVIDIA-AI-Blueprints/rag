@@ -510,6 +510,46 @@ class TestVLMDirectChain:
                         assert stream_kwargs["max_total_images"] == 10
 
     @pytest.mark.asyncio
+    async def test_vlm_direct_chain_keeps_zero_temperature_and_top_p(self):
+        """Explicit vlm_temperature=0 / vlm_top_p=0 must not fall back to config defaults."""
+        mock_vdb_op = Mock(spec=VDBRag)
+        rag = NvidiaRAG(vdb_op=mock_vdb_op)
+
+        rag.config.vlm.temperature = 0.5
+        rag.config.vlm.top_p = 0.8
+
+        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
+            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
+                with patch(
+                    "nvidia_rag.rag_server.main.generate_answer_async"
+                ) as mock_generate_answer:
+                    with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
+                        mock_vlm = Mock()
+                        mock_vlm.stream_with_messages = AsyncMock(
+                            return_value=async_gen_from_list(["VLM response"])
+                        )
+                        mock_vlm_class.return_value = mock_vlm
+                        mock_prefetch.return_value = async_gen_from_list(
+                            ["VLM response"]
+                        )
+                        mock_generate_answer.return_value = async_gen_from_list(
+                            ["VLM response"]
+                        )
+
+                        await rag._vlm_direct_chain(
+                            query="test query",
+                            chat_history=[],
+                            model="test_model",
+                            enable_citations=True,
+                            metrics=None,
+                            vlm_settings={"vlm_temperature": 0, "vlm_top_p": 0},
+                        )
+
+                        stream_kwargs = mock_vlm.stream_with_messages.call_args[1]
+                        assert stream_kwargs["temperature"] == 0
+                        assert stream_kwargs["top_p"] == 0
+
+    @pytest.mark.asyncio
     async def test_vlm_direct_chain_with_conversation_history(self):
         """Test VLM direct chain with conversation history."""
         mock_vdb_op = Mock(spec=VDBRag)
