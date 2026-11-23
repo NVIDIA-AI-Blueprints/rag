@@ -4,6 +4,7 @@
 """Guardrails for NSPECT-UV6I-R3V9 dependency remediation (pip-audit verified pins)."""
 
 from importlib.metadata import version
+
 from packaging.version import Version
 
 
@@ -33,3 +34,20 @@ def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
 
 def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
     assert Version(version("langsmith")) >= Version("0.8.0")
+
+
+# UNVERIFIED: scanner not run; recommended fix only
+def test_langchain_community_not_vulnerable_cve_2025_6984() -> None:
+    assert Version(version("langchain-community")) >= Version("0.4.2")
+
+
+# UNVERIFIED: scanner not run; recommended fix only
+def test_langchain_not_vulnerable_cve_2025_65106_cve_2025_68664_cve_2026_44843() -> (
+    None
+):
+    assert Version(version("langchain")) >= Version("1.3.11")
+
+
+# UNVERIFIED: scanner not run; recommended fix only
+def test_langchain_core_not_vulnerable_cve_2025_65106_cve_2025_68664() -> None:
+    assert Version(version("langchain-core")) >= Version("1.4.8")
