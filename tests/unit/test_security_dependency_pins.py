@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Guardrails for NSPECT-UV6I-R3V9 dependency remediation (pip-audit verified pins)."""
+"""Guardrails for NSPECT-UV6I-R3V9 / NSPECT-S62Q-PZUD dependency remediation (pip-audit verified pins)."""
 
 from importlib.metadata import version
 from packaging.version import Version
@@ -11,8 +11,9 @@ def test_cryptography_not_vulnerable_cve_2026_34073() -> None:
     assert Version(version("cryptography")) >= Version("46.0.6")
 
 
-def test_pillow_not_vulnerable_cve_2026_42311() -> None:
-    assert Version(version("pillow")) >= Version("12.2.0")
+def test_pillow_not_vulnerable_cve_2026_59198_through_59205() -> None:
+    # CVE-2026-59198/59199/59203/59204/59205: fixed in 12.3.0
+    assert Version(version("pillow")) >= Version("12.3.0")
 
 
 def test_urllib3_not_vulnerable_cve_2026_44432() -> None:
@@ -33,3 +34,18 @@ def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
 
 def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
     assert Version(version("langsmith")) >= Version("0.8.0")
+
+
+def test_aiohttp_not_vulnerable_cve_2026_50269() -> None:
+    # CVE-2026-50269: CRLF injection; fixed in 3.14.0+
+    assert Version(version("aiohttp")) >= Version("3.14.0")
+
+
+def test_langgraph_sdk_not_vulnerable_cve_2026_48776() -> None:
+    # CVE-2026-48776: unsafe URL path construction; fixed in 0.3.15+
+    assert Version(version("langgraph-sdk")) >= Version("0.3.15")
+
+
+def test_pyarrow_not_vulnerable_cve_2026_25087() -> None:
+    # CVE-2026-25087: use-after-free in IPC reader; affects 15.0.0-23.0.0; fixed in 23.0.1+
+    assert Version(version("pyarrow")) >= Version("23.0.1")
