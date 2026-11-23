@@ -252,14 +252,19 @@ class LanceDBVDB(VDBRagIngest):
         db = lancedb_mod.connect(self.uri)
         try:
             db.open_table(self._table_name)
-            logger.debug("LanceDB table '%s' already exists; skipping creation.", self._table_name)
+            logger.debug(
+                "LanceDB table '%s' already exists; skipping creation.",
+                self._table_name,
+            )
             return
         except Exception:
             pass
 
         dim = self.config.embeddings.dimensions if self.config else 2048
         schema = lancedb_schema(vector_dim=dim)
-        empty = pa.table({f.name: pa.array([], type=f.type) for f in schema}, schema=schema)
+        empty = pa.table(
+            {f.name: pa.array([], type=f.type) for f in schema}, schema=schema
+        )
         db.create_table(self._table_name, data=empty, schema=schema, mode="create")
         logger.info("Created LanceDB table '%s' at '%s'.", self._table_name, self.uri)
 
@@ -324,7 +329,9 @@ class LanceDBVDB(VDBRagIngest):
                 )
                 return
 
-            dim = infer_vector_dim(cleaned_rows) or (self.config.embeddings.dimensions if self.config else 2048)
+            dim = infer_vector_dim(cleaned_rows) or (
+                self.config.embeddings.dimensions if self.config else 2048
+            )
             schema = lancedb_schema(vector_dim=dim)
 
             db = lancedb_mod.connect(self.uri)
@@ -341,7 +348,9 @@ class LanceDBVDB(VDBRagIngest):
                 table_name=self._table_name,
                 hybrid=self.hybrid,
                 overwrite=False,
-                num_partitions=16 if len(cleaned_rows) > 16 else max(len(cleaned_rows)-1, 1),
+                num_partitions=16
+                if len(cleaned_rows) > 16
+                else max(len(cleaned_rows) - 1, 1),
             )
             create_lancedb_index(table, cfg=cfg)
             logger.info(
@@ -377,13 +386,17 @@ class LanceDBVDB(VDBRagIngest):
         list
             The records that were written (resolved from the Future if needed).
         """
-        logger.info("LanceDBVDB.run_async: creating index for table '%s'.", self._table_name)
+        logger.info(
+            "LanceDBVDB.run_async: creating index for table '%s'.", self._table_name
+        )
         self.create_index()
 
         if isinstance(records, Future):
             records = records.result()
 
-        logger.info("LanceDBVDB.run_async: writing records to table '%s'.", self._table_name)
+        logger.info(
+            "LanceDBVDB.run_async: writing records to table '%s'.", self._table_name
+        )
         self.write_to_index(records)
         return records
 
@@ -436,7 +449,9 @@ class LanceDBVDB(VDBRagIngest):
             pass
 
         schema = lancedb_schema(vector_dim=dimension)
-        empty = pa.table({f.name: pa.array([], type=f.type) for f in schema}, schema=schema)
+        empty = pa.table(
+            {f.name: pa.array([], type=f.type) for f in schema}, schema=schema
+        )
         db.create_table(collection_name, data=empty, schema=schema, mode="create")
         logger.info(
             "Created LanceDB table '%s' (dim=%d) at '%s'.",
@@ -480,7 +495,9 @@ class LanceDBVDB(VDBRagIngest):
                 table = db.open_table(name)
                 num_rows = table.count_rows()
             except Exception as exc:
-                logger.warning("get_collection: failed to open table '%s': %s", name, exc)
+                logger.warning(
+                    "get_collection: failed to open table '%s': %s", name, exc
+                )
                 num_rows = 0
 
             metadata_schema = self.get_metadata_schema(name)
@@ -538,7 +555,9 @@ class LanceDBVDB(VDBRagIngest):
                             "error_message": f"Table '{name}' not found.",
                         }
                     )
-                    logger.warning("LanceDB table '%s' not found; skipping deletion.", name)
+                    logger.warning(
+                        "LanceDB table '%s' not found; skipping deletion.", name
+                    )
             except Exception as exc:
                 failed.append({"collection_name": name, "error_message": str(exc)})
                 logger.error("Failed to delete LanceDB table '%s': %s", name, exc)
@@ -780,7 +799,9 @@ class LanceDBVDB(VDBRagIngest):
                 {"context": lambda input: input["context"]}
             )
 
-            logger.info("  [VDB Search] Performing vector similarity search in collection...")
+            logger.info(
+                "  [VDB Search] Performing vector similarity search in collection..."
+            )
             retriever_docs = retriever_chain.invoke(
                 query, config={"run_name": "retriever"}
             )
@@ -792,7 +813,9 @@ class LanceDBVDB(VDBRagIngest):
                 len(docs),
                 collection_name,
             )
-            logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", latency)
+            logger.info(
+                "  [VDB Search] Total VDB operation latency: %.4f seconds", latency
+            )
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
 
@@ -887,7 +910,11 @@ class LanceDBVDB(VDBRagIngest):
             table = db.open_table(collection_name)
             df = table.to_pandas()
         except Exception as exc:
-            logger.error("retrieve_chunks_by_filter: failed to open table '%s': %s", collection_name, exc)
+            logger.error(
+                "retrieve_chunks_by_filter: failed to open table '%s': %s",
+                collection_name,
+                exc,
+            )
             return []
 
         # Filter by source path using path or source_id column
@@ -1057,10 +1084,12 @@ class LanceDBVDB(VDBRagIngest):
         db = lancedb_mod.connect(self.uri)
 
         if DEFAULT_METADATA_SCHEMA_COLLECTION not in db.table_names():
-            schema = pa.schema([
-                pa.field("collection_name", pa.string()),
-                pa.field("metadata_schema", pa.string()),
-            ])
+            schema = pa.schema(
+                [
+                    pa.field("collection_name", pa.string()),
+                    pa.field("metadata_schema", pa.string()),
+                ]
+            )
             empty = pa.table(
                 {
                     "collection_name": pa.array([], type=pa.string()),
@@ -1127,7 +1156,9 @@ class LanceDBVDB(VDBRagIngest):
         new_row = pa.table(
             {
                 "collection_name": pa.array([collection_name], type=pa.string()),
-                "metadata_schema": pa.array([json.dumps(metadata_schema)], type=pa.string()),
+                "metadata_schema": pa.array(
+                    [json.dumps(metadata_schema)], type=pa.string()
+                ),
             }
         )
         table.add(new_row)
@@ -1202,12 +1233,14 @@ class LanceDBVDB(VDBRagIngest):
         db = lancedb_mod.connect(self.uri)
 
         if DEFAULT_DOCUMENT_INFO_COLLECTION not in db.table_names():
-            schema = pa.schema([
-                pa.field("info_type", pa.string()),
-                pa.field("collection_name", pa.string()),
-                pa.field("document_name", pa.string()),
-                pa.field("info_value", pa.string()),
-            ])
+            schema = pa.schema(
+                [
+                    pa.field("info_type", pa.string()),
+                    pa.field("collection_name", pa.string()),
+                    pa.field("document_name", pa.string()),
+                    pa.field("info_value", pa.string()),
+                ]
+            )
             empty = pa.table(
                 {
                     "info_type": pa.array([], type=pa.string()),
@@ -1563,7 +1596,9 @@ class LanceDBVDB(VDBRagIngest):
                 return result
             table = db.open_table(DEFAULT_DOCUMENT_INFO_COLLECTION)
             df = table.to_pandas()
-            mask = (df["info_type"] == "document") & (df["collection_name"] == collection_name)
+            mask = (df["info_type"] == "document") & (
+                df["collection_name"] == collection_name
+            )
             for _, row in df[mask].iterrows():
                 doc_name = row["document_name"]
                 try:

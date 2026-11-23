@@ -182,7 +182,9 @@ class FilesystemObjectStoreOperator:
 
     def get_payload(self, object_name: str) -> dict:
         try:
-            return json.loads(self._object_path(object_name).read_text(encoding="utf-8"))
+            return json.loads(
+                self._object_path(object_name).read_text(encoding="utf-8")
+            )
         except Exception as e:
             logger.warning(
                 "Error while getting object from object store! Object name: %s",

@@ -188,7 +188,9 @@ async def check_object_store_health(
             )
         except Exception as e:
             latency_ms = round((time.time() - start_time) * 1000, 2)
-            logger.error("Error checking filesystem object-store health: %s", e, exc_info=True)
+            logger.error(
+                "Error checking filesystem object-store health: %s", e, exc_info=True
+            )
             return StorageHealthInfo(
                 service="Object Storage",
                 url=config.storage_root.as_uri(),
@@ -209,7 +211,9 @@ async def check_object_store_health(
 
     try:
         start_time = time.time()
-        object_store_operator = get_object_store_operator(config=NvidiaRAGConfig(object_store=config))
+        object_store_operator = get_object_store_operator(
+            config=NvidiaRAGConfig(object_store=config)
+        )
         # Test basic operation - list buckets
         buckets = object_store_operator.client.list_buckets()
         latency_ms = round((time.time() - start_time) * 1000, 2)
@@ -443,10 +447,10 @@ async def check_all_services_health(
         embed_url = config.embeddings.server_url
         if not embed_url.startswith(("http://", "https://")):
             embed_url = f"http://{embed_url}"
-        
+
         # Check if version suffix (v1, v2, vN) is already present in the URL
-        has_version = re.search(r'/v\d+(?:/|$)', embed_url)
-        
+        has_version = re.search(r"/v\d+(?:/|$)", embed_url)
+
         if has_version:
             # Version already present, just add /health/ready
             embed_url = f"{embed_url.rstrip('/')}/health/ready"

@@ -994,9 +994,15 @@ class VLM:
                         # field when stream_options.include_usage=True. Capture it once we see it.
                         chunk_usage = getattr(chunk, "usage", None)
                         if chunk_usage is not None and token_usage is not None:
-                            token_usage["prompt_tokens"] = getattr(chunk_usage, "prompt_tokens", 0) or 0
-                            token_usage["completion_tokens"] = getattr(chunk_usage, "completion_tokens", 0) or 0
-                            token_usage["total_tokens"] = getattr(chunk_usage, "total_tokens", 0) or 0
+                            token_usage["prompt_tokens"] = (
+                                getattr(chunk_usage, "prompt_tokens", 0) or 0
+                            )
+                            token_usage["completion_tokens"] = (
+                                getattr(chunk_usage, "completion_tokens", 0) or 0
+                            )
+                            token_usage["total_tokens"] = (
+                                getattr(chunk_usage, "total_tokens", 0) or 0
+                            )
                         if not chunk.choices:
                             chunk_count += 1
                             continue

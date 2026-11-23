@@ -139,9 +139,7 @@ class NRLLanceDB(LangchainLanceDB):
         docs = []
         for idx in range(len(results)):
             # ── Text content → page_content ──────────────────────────────
-            text = (
-                results[text_key][idx].as_py() if text_key in columns else ""
-            ) or ""
+            text = (results[text_key][idx].as_py() if text_key in columns else "") or ""
 
             # ── Collect every non-vector, non-text column into metadata ───
             # The loop is intentionally generic so it stays correct even when

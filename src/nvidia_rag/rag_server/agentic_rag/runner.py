@@ -447,9 +447,9 @@ async def _run_streaming(
             agent.metrics.update(trace)
             _record_agentic_query_metrics(
                 metrics,
-            trace,
-            status="error",
-            verification_enabled=verification_enabled,
+                trace,
+                status="error",
+                verification_enabled=verification_enabled,
             )
             metrics_recorded = True
             logger.info("[AGENTIC_RAG] Query failed: %s", trace.one_line_summary())
