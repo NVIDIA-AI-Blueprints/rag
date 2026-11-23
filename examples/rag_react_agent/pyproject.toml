@@ -49,6 +49,9 @@ source = "https://github.com/NVIDIA/NeMo-Agent-Toolkit"
 managed = true
 config-settings = { editable_mode = "compat" }
 prerelease = "allow"  # nvidia-nat packages are currently pre-release only
+override-dependencies = [
+    "aiohttp>=3.14.1",
+]
 
 
 [tool.uv.sources]
