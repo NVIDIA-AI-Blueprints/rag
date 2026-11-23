@@ -4,11 +4,17 @@
 """Guardrails for NSPECT-UV6I-R3V9 dependency remediation (pip-audit verified pins)."""
 
 from importlib.metadata import version
+
 from packaging.version import Version
 
 
 def test_cryptography_not_vulnerable_cve_2026_34073() -> None:
     assert Version(version("cryptography")) >= Version("46.0.6")
+
+
+def test_cryptography_not_vulnerable_ghsa_537c_gmf6_5ccf() -> None:
+    # GHSA-537c-gmf6-5ccf (HIGH): vulnerable OpenSSL included in cryptography wheels
+    assert Version(version("cryptography")) >= Version("48.0.1")
 
 
 def test_pillow_not_vulnerable_cve_2026_42311() -> None:
@@ -27,9 +33,29 @@ def test_python_multipart_not_vulnerable_cve_2026_42561() -> None:
     assert Version(version("python-multipart")) >= Version("0.0.27")
 
 
+def test_python_multipart_not_vulnerable_ghsa_5rvq_cxj2_64vf() -> None:
+    # GHSA-5rvq-cxj2-64vf / CVE-2026-53539 (HIGH): quadratic-time DoS via semicolon separators
+    assert Version(version("python-multipart")) >= Version("0.0.31")
+
+
 def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
     assert Version(version("orjson")) >= Version("3.11.6")
 
 
 def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
     assert Version(version("langsmith")) >= Version("0.8.0")
+
+
+def test_langsmith_not_vulnerable_ghsa_f4xh_w4cj_qxq8() -> None:
+    # GHSA-f4xh-w4cj-qxq8 (HIGH): arbitrary server-side file read via TracingMiddleware
+    assert Version(version("langsmith")) >= Version("0.8.18")
+
+
+def test_aiohttp_not_vulnerable_cve_2026_47265() -> None:
+    # CVE-2026-47265 (HIGH 7.5): and related aiohttp >=3.14.1 fixes
+    assert Version(version("aiohttp")) >= Version("3.14.1")
+
+
+def test_starlette_not_vulnerable_cve_2026_48818() -> None:
+    # CVE-2026-48818 / GHSA-82w8-qh3p-5jfq (HIGH 7.5): request.form() limits ignored, DoS
+    assert Version(version("starlette")) >= Version("1.3.1")
