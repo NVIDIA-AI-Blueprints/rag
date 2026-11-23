@@ -1,0 +1,21 @@
+models:
+  - engine: nim
+    type: content_safety
+    model: llama-3.1-nemoguard-8b-content-safety
+    parameters:
+      base_url: http://content-safety:8000/v1
+
+  - engine: nim
+    type: topic_control
+    model: llama-3.1-nemoguard-8b-topic-control
+    parameters:
+      base_url: http://topic-control:8000/v1
+
+rails:
+  input:
+    flows:
+      - content safety check input $model=content_safety
+      - topic safety check input $model=topic_control
+  output:
+    flows:
+      - content safety check output $model=content_safety
