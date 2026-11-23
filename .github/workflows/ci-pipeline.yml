@@ -144,7 +144,7 @@ jobs:
         working-directory: frontend
         run: |
           pnpm config set store-dir .pnpm-store
-          pnpm install --frozen-lockfile || pnpm install
+          pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
 
       - name: Run frontend unit tests with coverage
         working-directory: frontend

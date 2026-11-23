@@ -33,3 +33,19 @@ def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
 
 def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
     assert Version(version("langsmith")) >= Version("0.8.0")
+
+
+def test_pillow_not_vulnerable_cve_2026_54058() -> None:
+    assert Version(version("pillow")) >= Version("12.3.0")
+
+
+def test_aiohttp_not_vulnerable_cve_2026_50269() -> None:
+    assert Version(version("aiohttp")) >= Version("3.14.0")
+
+
+def test_langchain_not_vulnerable_cve_2026_44843() -> None:
+    assert Version(version("langchain")) >= Version("1.3.3")
+
+
+def test_bleach_not_vulnerable_ghsa_8rfp_98v4_mmr6() -> None:
+    assert Version(version("bleach")) >= Version("6.4.0")
