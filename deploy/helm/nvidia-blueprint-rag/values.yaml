@@ -932,6 +932,11 @@ nimOperator:
 # NIM VLM Embedding (default embedding service; aligned with envVars.APP_EMBEDDINGS_SERVERURL)
   nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     enabled: true
+    # -- Skip the NIMCache manifest-probe and have the NIMService download the model
+    # directly into its own PVC at runtime. Required for distroless NIM images (e.g.
+    # nemotron-3-embed-1b) whose containers have no shell for the operator's `sh -c`
+    # manifest probe. Leave false to use the shared NIMCache (default behavior).
+    useDirectPvc: false
     # -- Annotations applied to NIM pods (propagated via NIMService.spec.podAnnotations).
     # See nim-llm.podAnnotations above for a Runai fractional GPU example.
     podAnnotations: {}
