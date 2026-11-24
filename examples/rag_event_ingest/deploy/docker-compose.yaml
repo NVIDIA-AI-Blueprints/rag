@@ -62,7 +62,7 @@ services:
   # MINIO (Data Source)
   # =============================================================================
   minio-source-1:
-    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: aidp-minio
     command: server /data --console-address ":9001"
     environment:
@@ -87,7 +87,7 @@ services:
 
   # MinIO MC for bucket setup
   minio-mc:
-    image: minio/mc:latest
+    image: pgsty/mc:RELEASE.2026-08-04T00-00-00Z
     container_name: aidp-minio-mc
     depends_on:
       minio-source-1:
